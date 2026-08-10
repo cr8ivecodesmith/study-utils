@@ -51,8 +51,8 @@ study_utils = [
   "convert_markdown/*.toml",
 ]
 
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
   "pytest",
   "coverage",
   "pytest-xdist",
