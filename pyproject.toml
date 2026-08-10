@@ -15,6 +15,7 @@ dependencies = [
   "pydub",
   "SpeechRecognition",
   "openai",
+  "requests",
   "langchain",
   "tiktoken",
   "unstructured",
