@@ -1,0 +1,32 @@
+# OpenAI-compatible API base URL
+api_base = "http://192.168.8.161:10000/v1"
+
+# Which key to prefer: "local" or "openai"
+key_source = "local"
+
+# Chat completions
+[chat]
+model = "gemma4-e4b"
+prompt = "Hello, who are you?"
+max_tokens = 50
+
+# Embeddings
+[embeddings]
+model = "qwen3-embedding"
+input = "Test sentence for embeddings."
+
+# Rerank
+[rerank]
+model = "qwen3-reranker"
+query = "AI chatbots"
+docs = [
+    "Chatbots are AI.",
+    "Robots are mechanical.",
+    "LLMs power modern chatbots.",
+]
+
+# Audio transcription
+[audio]
+model = "whisper3"
+file = "samples/taglish-sample.wav"
+language = "auto"
