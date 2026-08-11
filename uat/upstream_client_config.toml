@@ -1,0 +1,38 @@
+# Llama-swap upstream client config
+
+# Base URL of the llama-swap instance
+api_base = "http://192.168.8.161:10000"
+
+# Which key to prefer: "local" or "openai"
+key_source = "local"
+
+# Snippet display settings
+[snippet]
+max_chars = 400
+json_indent = 2
+
+# Mineru document parsing
+[mineru]
+model_id = "mineru25"
+endpoint = "parse"
+file = "samples/doc-page-1.png"
+show_preview = true
+snippet_max_chars = 500
+
+# Kokoro text-to-speech
+[kokoro]
+model_id = "kokoro"
+endpoint = "speak"
+text = "Testing Kokoro on the auxiliary swap."
+voice = "af_bella"
+output = "samples/kokoro_upstream.wav"
+show_preview = true
+base64_preview_len = 300
+
+# Pyannote diarization
+[pyannote]
+model_id = "pyannote"
+endpoint = "diarize"
+file = "samples/diarization-sample-synthetic.wav"
+show_preview = true
+snippet_max_chars = 450
