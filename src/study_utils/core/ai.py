@@ -60,6 +60,7 @@ def load_llama_swap_upstream_client(
     api_base: str = "http://localhost:8080",
     method: str = "POST",
     json: dict[str, Any] | None = None,
+    files: dict[str, Any] | None = None,
     headers: dict[str, str] | None = None,
 ) -> requests.Response:
     """Call llama-swap's upstream endpoint via requests.
@@ -70,6 +71,7 @@ def load_llama_swap_upstream_client(
         api_base: The base URL of the llama-swap instance.
         method: HTTP method to use for the request.
         json: JSON payload to send in the request body.
+        files: Files to send as multipart form data.
         headers: Additional headers to merge with the Authorization header.
 
     Returns:
@@ -91,5 +93,6 @@ def load_llama_swap_upstream_client(
         method=method,
         url=url,
         json=json,
+        files=files,
         headers=merged_headers if merged_headers is not None else None,
     )

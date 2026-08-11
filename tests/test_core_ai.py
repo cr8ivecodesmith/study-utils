@@ -224,6 +224,21 @@ def test_upstream_client_no_key_no_auth(
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
 
+def test_upstream_client_with_files(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("LOCAL_LLM_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    with patch("study_utils.core.ai.requests.request") as mock_request:
+        files = {"file": ("test.png", b"binary-data")}
+        load_llama_swap_upstream_client(files=files)
+        mock_request.assert_called_once()
+        call_args = mock_request.call_args
+        assert call_args.kwargs["files"] == files
+    monkeypatch.delenv("LOCAL_LLM_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+
 def test_all_exports() -> None:
     assert "load_client" in ai.__all__
     assert "load_llama_swap_upstream_client" in ai.__all__
