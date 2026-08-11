@@ -85,6 +85,19 @@ class ChatConfig:
 
 
 @dataclass(frozen=True)
+class ServiceAIConfig:
+    use_local: bool
+    api_base: str
+    provider: str
+
+
+@dataclass(frozen=True)
+class ServicesAIConfig:
+    chat: ServiceAIConfig
+    embeddings: ServiceAIConfig
+
+
+@dataclass(frozen=True)
 class LoggingConfig:
     level: str
     verbose: bool
@@ -97,6 +110,7 @@ class RagConfig:
     ingestion: IngestionConfig
     retrieval: RetrievalConfig
     chat: ChatConfig
+    services: ServicesAIConfig
     logging: LoggingConfig
 
     @property
@@ -358,12 +372,51 @@ def _build_logging(section: Mapping[str, Any]) -> LoggingConfig:
     return LoggingConfig(level=level, verbose=verbose)
 
 
+def _build_service_ai(section: Mapping[str, Any]) -> ServiceAIConfig:
+    use_local = _require_bool(
+        section.get("use_local", True), field="services.use_local"
+    )
+    api_base = _coerce_optional_string(
+        section.get("api_base", "http://localhost:8080/v1"),
+        field="services.api_base",
+    )
+    if api_base is None:
+        api_base = "http://localhost:8080/v1"
+    raw_provider = section.get("provider")
+    if raw_provider is None:
+        raw_provider = "local"
+    provider = _require_string(
+        raw_provider, field="services.provider"
+    )
+    return ServiceAIConfig(
+        use_local=use_local,
+        api_base=api_base,
+        provider=provider,
+    )
+
+
+def _build_services(section: Mapping[str, Any]) -> ServicesAIConfig:
+    chat_section = section.get("chat", {})
+    if not isinstance(chat_section, Mapping):
+        raise ConfigError("services.chat must be a mapping.")
+    embeddings_section = section.get("embeddings", {})
+    if not isinstance(embeddings_section, Mapping):
+        raise ConfigError("services.embeddings must be a mapping.")
+    chat_ai = _build_service_ai(chat_section)
+    embeddings_ai = _build_service_ai(embeddings_section)
+    return ServicesAIConfig(
+        chat=chat_ai,
+        embeddings=embeddings_ai,
+    )
+
+
 def _build_config(tree: Mapping[str, Any]) -> RagConfig:
     paths_section = tree.get("paths", {})
     providers_section = tree.get("providers", {})
     ingestion_section = tree.get("ingestion", {})
     retrieval_section = tree.get("retrieval", {})
     chat_section = tree.get("chat", {})
+    services_section = tree.get("services", {})
     logging_section = tree.get("logging", {})
 
     if not isinstance(paths_section, Mapping):
@@ -376,6 +429,8 @@ def _build_config(tree: Mapping[str, Any]) -> RagConfig:
         raise ConfigError("retrieval table must be a mapping.")
     if not isinstance(chat_section, Mapping):
         raise ConfigError("chat table must be a mapping.")
+    if not isinstance(services_section, Mapping):
+        raise ConfigError("services table must be a mapping.")
     if not isinstance(logging_section, Mapping):
         raise ConfigError("logging table must be a mapping.")
 
@@ -385,6 +440,7 @@ def _build_config(tree: Mapping[str, Any]) -> RagConfig:
         ingestion=_build_ingestion(ingestion_section),
         retrieval=_build_retrieval(retrieval_section),
         chat=_build_chat(chat_section),
+        services=_build_services(services_section),
         logging=_build_logging(logging_section),
     )
 
@@ -500,6 +556,18 @@ _DEFAULTS: Dict[str, Any] = {
         "response_tokens": 800,
         "stream": True,
     },
+    "services": {
+        "chat": {
+            "use_local": True,
+            "api_base": "http://localhost:8080/v1",
+            "provider": "local",
+        },
+        "embeddings": {
+            "use_local": True,
+            "api_base": "http://localhost:8080/v1",
+            "provider": "local",
+        },
+    },
     "logging": {
         "level": "INFO",
         "verbose": False,
@@ -567,6 +635,25 @@ max_history_turns = 200
 response_tokens = 800
 # Stream responses to the terminal when supported
 stream = true
+
+[services]
+# Per-service local LLM configuration. Each subsection controls settings for a
+# specific AI service (chat, embeddings).  These are independently configurable
+# so chat might use a local model while embeddings point to a cloud API or vice
+# versa.
+
+[services.chat]
+# When true, prefer LOCAL_LLM_API_KEY over OPENAI_API_KEY.
+use_local = true
+# Base URL passed to the OpenAI SDK (base_url=...).
+api_base = "http://localhost:8080/v1"
+# Provider hint — "local" maps to key_source = "local".
+provider = "local"
+
+[services.embeddings]
+use_local = true
+api_base = "http://localhost:8080/v1"
+provider = "local"
 
 [logging]
 level = "INFO"

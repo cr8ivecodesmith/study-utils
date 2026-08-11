@@ -30,6 +30,11 @@ from .core import (
     read_text_file,
 )
 
+_TEXT_COMBINER_LLM = {
+    "USE_LOCAL": True,
+    "API_BASE": "http://localhost:8080/v1",
+}
+
 try:  # Optional dependency: openai may not be installed in local envs.
     from openai import BadRequestError as OpenAIBadRequestError  # type: ignore
 except Exception:  # pragma: no cover - fallback when OpenAI SDK missing
@@ -122,7 +127,10 @@ def _with_heading(text: str, heading: Optional[str]) -> str:
 
 def _ai_title_from_filename(path: Path) -> Optional[str]:
     try:
-        client = load_client()
+        client = load_client(
+            local=_TEXT_COMBINER_LLM["USE_LOCAL"],
+            api_base=_TEXT_COMBINER_LLM["API_BASE"],
+        )
     except Exception:
         return None
     prompt = (
@@ -157,7 +165,10 @@ def _ai_title_from_filename(path: Path) -> Optional[str]:
 
 def _ai_title_from_content(content: str, filename: str) -> Optional[str]:
     try:
-        client = load_client()
+        client = load_client(
+            local=_TEXT_COMBINER_LLM["USE_LOCAL"],
+            api_base=_TEXT_COMBINER_LLM["API_BASE"],
+        )
     except Exception:
         return None
 

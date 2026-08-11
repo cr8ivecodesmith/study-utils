@@ -259,7 +259,10 @@ def _ensure_ai_client(client: Optional[object]) -> Optional[object]:
     if load_client is None:
         return None
     try:
-        return load_client()
+        return load_client(
+            local=True,
+            api_base="http://localhost:8080/v1",
+        )
     except Exception:
         return None
 

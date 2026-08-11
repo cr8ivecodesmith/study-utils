@@ -257,7 +257,13 @@ def test_openai_embedding_client_builds_client(monkeypatch):
         embeddings=types.SimpleNamespace(create=lambda **kwargs: stub_data),
     )
     monkeypatch.setattr(ingest, "OpenAI", object())
-    monkeypatch.setattr(ingest, "load_openai_client", lambda: stub_client)
+
+    def _mock_load_openai_client(local: bool = False, api_base: str | None = None):
+        if api_base and hasattr(stub_client, "base_url"):
+            stub_client.base_url = api_base
+        return stub_client
+
+    monkeypatch.setattr(ingest, "load_openai_client", _mock_load_openai_client)
     adapter = ingest.OpenAIEmbeddingClient(
         model="m",
         api_base="https://example",
@@ -283,15 +289,25 @@ def test_build_openai_client_sets_base_url(monkeypatch):
     holder = {}
 
     class StubClient:
+        base_url: str | None
+
         def __init__(self):
             self.base_url = None
 
-    monkeypatch.setattr(
-        ingest,
-        "load_openai_client",
-        lambda: holder.setdefault("client", StubClient()),
-    )
-    client = ingest._build_openai_client("https://example")
+    def _mock_loader(local: bool = False, api_base: str | None = None):
+        if "client" not in holder:
+            c = StubClient()
+            if api_base is not None:
+                c.base_url = api_base
+            holder["client"] = c
+            return c
+        client = holder["client"]
+        if api_base is not None:
+            client.base_url = api_base
+        return client
+
+    monkeypatch.setattr(ingest, "load_openai_client", _mock_loader)
+    client = ingest._build_openai_client(api_base="https://example")
     assert client.base_url == "https://example"
 
 

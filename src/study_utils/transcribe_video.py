@@ -36,6 +36,12 @@ from pydub.utils import make_chunks
 
 from .core import load_client
 
+_TRANSCRIBE_LLM = {
+    "USE_LOCAL": True,
+    "API_BASE": "http://localhost:8080/v1",
+    "MODEL": os.getenv("TRANSCRIPTION_MODEL", "whisper-3"),
+}
+
 
 def find_video_files(target: Path, recursive: bool = False) -> List[Path]:
     """Return a flat list of `.mp4` files for the given target.
@@ -281,9 +287,9 @@ def split_video_to_audio_segments(
 
 
 def transcribe_audio_file(client: OpenAI, audio_path: Path) -> str:
-    """Transcribe a single audio file using Whisper-1 and return plain text."""
+    """Transcribe a single audio file using the configured model (whisper-3 by default) and return plain text."""
     response = client.audio.transcriptions.create(
-        model="whisper-1",
+        model=os.getenv("TRANSCRIPTION_MODEL", "whisper-3"),
         file=audio_path.open("rb"),
         response_format="text",
     )
@@ -410,7 +416,10 @@ def main():
         raise SystemExit(1)
 
     out_dir = _prepare_output_dir(args.output_dir)
-    client = load_client()
+    client = load_client(
+        local=_TRANSCRIBE_LLM["USE_LOCAL"],
+        api_base=_TRANSCRIBE_LLM["API_BASE"],
+    )
     parsed_prefix = parse_prefix_parts(args.prefix)
     names_entries = _prepare_names_for_run(
         args, video_files, target_path, client, parsed_prefix
@@ -514,7 +523,14 @@ def _handle_list_mode(args, video_files: List[Path], target_path: Path) -> None:
         return
     parsed_prefix = parse_prefix_parts(args.prefix)
     if args.smart_names:
-        client = load_client() if args.use_ai else None
+        client = (
+            load_client(
+                local=_TRANSCRIBE_LLM["USE_LOCAL"],
+                api_base=_TRANSCRIBE_LLM["API_BASE"],
+            )
+            if args.use_ai
+            else None
+        )
         root, cache_path = _resolve_names_paths(args, target_path)
         existing = _load_existing_names(cache_path)
         mapping = _build_mapping_base(args, video_files, root, client, existing)

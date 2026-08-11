@@ -189,9 +189,12 @@ def test_generate_document_writes_output_with_stubbed_client(
     openai_factory.reset()
     stub = openai_factory()
     stub.queue_response("# Result\n\nGenerated.")
+    def _mock_load_client(local: bool = False, api_base: str | None = None):
+        return stub
+
     monkeypatch.setattr(
         "study_utils.generate_document.runner.load_client",
-        lambda: stub,
+        _mock_load_client,
     )
 
     out = tmp_path / "out.md"
@@ -214,9 +217,12 @@ def test_generate_document_unknown_type_raises(
     p = tmp_path / "x.txt"
     p.write_text("X", encoding="utf-8")
     config_path = _write_workspace_config(tmp_path, monkeypatch)
+    def _mock_noop(local: bool = False, api_base: str | None = None):
+        return object()
+
     monkeypatch.setattr(
         "study_utils.generate_document.runner.load_client",
-        lambda: object(),
+        _mock_noop,
     )
 
     with pytest.raises(ValueError):
@@ -235,9 +241,13 @@ def test_generate_document_no_matching_files_raises(
 ) -> None:
     (tmp_path / "a.bin").write_text("X", encoding="utf-8")
     config_path = _write_workspace_config(tmp_path, monkeypatch)
+
+    def _mock_noop(local: bool = False, api_base: str | None = None):
+        return object()
+
     monkeypatch.setattr(
         "study_utils.generate_document.runner.load_client",
-        lambda: object(),
+        _mock_noop,
     )
     with pytest.raises(FileNotFoundError):
         gd.generate_document(
@@ -258,7 +268,7 @@ def test_generate_document_raises_when_ai_returns_empty(
     config_path = _write_workspace_config(tmp_path, monkeypatch)
 
     class EmptyClient:
-        def __init__(self) -> None:
+        def __init__(self, local: bool = False, api_base: str | None = None) -> None:
             message = SimpleNamespace(content=" ")
             choice = SimpleNamespace(message=message)
             self.chat = SimpleNamespace(
@@ -296,9 +306,13 @@ def test_main_success(
 
     stub = openai_factory()
     stub.queue_response("# Title\n\nBody")
+
+    def _mock_load_client(local: bool = False, api_base: str | None = None):
+        return stub
+
     monkeypatch.setattr(
         "study_utils.generate_document.runner.load_client",
-        lambda: stub,
+        _mock_load_client,
     )
     out_path = tmp_path / "out.md"
     argv = [

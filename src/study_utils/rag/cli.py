@@ -768,21 +768,26 @@ def _build_embedder(cfg: config_mod.RagConfig) -> ingest_mod.EmbeddingClient:
             "Only the 'openai' provider is supported for embeddings."
         )
     openai_cfg = cfg.providers.openai
+    services = cfg.services.embeddings
     return ingest_mod.OpenAIEmbeddingClient(
         model=openai_cfg.embedding_model,
-        api_base=openai_cfg.api_base,
+        api_base=services.api_base,
         request_timeout=openai_cfg.request_timeout_seconds,
+        use_local=services.use_local,
     )
+
 
 
 def _build_chat_client(cfg: config_mod.RagConfig) -> chat_mod.ChatClient:
     openai_cfg = cfg.providers.openai
+    services = cfg.services.chat
     return chat_mod.OpenAIChatClient(
         model=openai_cfg.chat_model,
         temperature=openai_cfg.temperature,
         max_output_tokens=cfg.chat.response_tokens,
         request_timeout=openai_cfg.request_timeout_seconds,
         api_base=openai_cfg.api_base,
+        use_local=services.use_local,
     )
 
 

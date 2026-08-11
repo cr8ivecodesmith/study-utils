@@ -6,6 +6,11 @@ from typing import Optional, Sequence
 from rich.console import Console
 
 from ..core import load_client
+
+_QUIZZER_LLM = {
+    "USE_LOCAL": True,
+    "API_BASE": "http://localhost:8080/v1",
+}
 from .utils import (
     _find_config,
     _load_toml,
@@ -161,7 +166,10 @@ def _cmd_questions_generate(args: argparse.Namespace) -> int:
     client = None
     if load_client is not None:
         try:
-            client = load_client()
+            client = load_client(
+                local=_QUIZZER_LLM["USE_LOCAL"],
+                api_base=_QUIZZER_LLM["API_BASE"],
+            )
         except Exception:
             client = None
     questions = generate_questions(

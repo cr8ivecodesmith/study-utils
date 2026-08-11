@@ -551,7 +551,11 @@ def test_main_transcribe_flow(
     monkeypatch.setattr(tv, "_parse_transcribe_args", lambda: args)
     monkeypatch.setattr(tv, "_discover_video_files", lambda *a, **k: [video])
     monkeypatch.setattr(tv, "_prepare_output_dir", lambda out: tmp_path)
-    monkeypatch.setattr(tv, "load_client", lambda: object())
+
+    def _mock_load_client(local: bool = True, api_base: str | None = None):
+        return object()
+
+    monkeypatch.setattr(tv, "load_client", _mock_load_client)
     monkeypatch.setattr(tv, "parse_prefix_parts", lambda parts: [])
     monkeypatch.setattr(tv, "_prepare_names_for_run", lambda *a, **k: {})
     monkeypatch.setattr(tv, "_transcribe_videos", lambda *a, **k: None)

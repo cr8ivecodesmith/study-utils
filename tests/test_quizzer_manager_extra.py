@@ -80,10 +80,12 @@ def test_validate_mcq_failure_paths() -> None:
 
 
 def test_ensure_ai_client(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(qm, "load_client", lambda: "client")
+    monkeypatch.setattr(
+        qm, "load_client", lambda local=True, api_base="": "client"
+    )
     assert qm._ensure_ai_client(None) == "client"
     monkeypatch.setattr(
-        qm, "load_client", lambda: (_ for _ in ()).throw(RuntimeError)
+        qm, "load_client", lambda local=False, api_base=None: (_ for _ in ()).throw(RuntimeError)
     )
     assert qm._ensure_ai_client(None) is None
     monkeypatch.setattr(qm, "load_client", None)

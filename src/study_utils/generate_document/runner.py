@@ -8,6 +8,11 @@ from typing import Dict, List, Sequence, Set, Tuple
 
 from study_utils.core import iter_text_files, load_client, read_text_file
 
+_DEFAULT_LOCAL_LLM = {
+    "USE_LOCAL": True,
+    "API_BASE": "http://localhost:8080/v1",
+}
+
 from .config import load_documents_config
 
 
@@ -75,7 +80,10 @@ def generate_document(
         (path, read_text_file(path)) for path in discovered
     ]
 
-    client = load_client()
+    client = load_client(
+        local=_DEFAULT_LOCAL_LLM["USE_LOCAL"],
+        api_base=_DEFAULT_LOCAL_LLM["API_BASE"],
+    )
     doc_cfg = cfg_all[doc_type]
     messages = build_messages(doc_cfg, ref_pairs)
     model = doc_cfg.get("model") or os.getenv(

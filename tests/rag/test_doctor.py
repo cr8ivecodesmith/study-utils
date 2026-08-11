@@ -112,6 +112,7 @@ def _make_config(*, tokenizer: str = "tok") -> config_mod.RagConfig:
         retrieval=retrieval,
         chat=chat,
         logging=logging_cfg,
+        services=config_mod._build_services(config_mod._DEFAULTS["services"]),
     )
 
 

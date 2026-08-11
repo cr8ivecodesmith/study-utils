@@ -59,14 +59,27 @@ def test_ai_title_helpers_use_openai(
 ) -> None:
     custom_err = type("CustomErr", (Exception,), {})
     monkeypatch.setattr(tc, "OpenAIBadRequestError", custom_err, raising=False)
+
     stub = openai_factory()
     stub.queue_response("Generated Title\n")
-    monkeypatch.setattr(tc, "load_client", lambda: stub)
+
+    def _mock_load_client(
+        local: bool = True, api_base: str | None = None, _stub=stub,
+    ):
+        return _stub
+
+    monkeypatch.setattr(tc, "load_client", _mock_load_client)
     assert tc._ai_title_from_filename(Path("example.md")) == "Generated Title"
 
     stub2 = openai_factory()
     stub2.queue_response("Content Title")
-    monkeypatch.setattr(tc, "load_client", lambda: stub2)
+
+    def _mock_load_client2(
+        local: bool = True, api_base: str | None = None, _stub=stub2,
+    ):
+        return _stub
+
+    monkeypatch.setattr(tc, "load_client", _mock_load_client2)
     assert tc._ai_title_from_content("Body", "file.md") == "Content Title"
 
     class BadClient:
@@ -81,7 +94,13 @@ def test_ai_title_helpers_use_openai(
         chat = Chat()
 
     bad_client = BadClient()
-    monkeypatch.setattr(tc, "load_client", lambda: bad_client)
+
+    def _mock_load_client3(
+        local: bool = True, api_base: str | None = None, _client=bad_client,
+    ):
+        return _client
+
+    monkeypatch.setattr(tc, "load_client", _mock_load_client3)
     assert tc._ai_title_from_filename(Path("example.md")) is None
     assert tc._ai_title_from_content("Body", "file.md") is None
 
@@ -96,7 +115,12 @@ def test_ai_title_helpers_use_openai(
 
         chat = Chat()
 
-    monkeypatch.setattr(tc, "load_client", lambda: GenericClient())
+    def _mock_generic(
+        local: bool = True, api_base: str | None = None,
+    ):
+        return GenericClient()
+
+    monkeypatch.setattr(tc, "load_client", _mock_generic)
     assert tc._ai_title_from_filename(Path("example.md")) is None
     assert tc._ai_title_from_content("Body", "file.md") is None
 

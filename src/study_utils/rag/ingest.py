@@ -48,12 +48,15 @@ class OpenAIEmbeddingClient:
         model: str,
         api_base: str | None,
         request_timeout: int,
+        use_local: bool = False,
         client: Any | None = None,
     ) -> None:
         if client is not None:
             self._client = client
         else:
-            self._client = _build_openai_client(api_base)
+            self._client = _build_openai_client(
+                api_base=api_base, use_local=use_local,
+            )
         self._model = model
         self._timeout = request_timeout
 
@@ -74,10 +77,12 @@ class OpenAIEmbeddingClient:
         return [list(item.embedding) for item in response.data]
 
 
-def _build_openai_client(api_base: str | None) -> Any:
-    client = load_openai_client()
-    if api_base and hasattr(client, "base_url"):
-        client.base_url = api_base
+def _build_openai_client(
+    *,
+    api_base: str | None,
+    use_local: bool = False,
+) -> Any:
+    client = load_openai_client(local=use_local, api_base=api_base)
     return client
 
 

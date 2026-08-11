@@ -94,6 +94,7 @@ class OpenAIChatClient:
         max_output_tokens: int,
         request_timeout: int,
         api_base: str | None,
+        use_local: bool = False,
         client: Any | None = None,
     ) -> None:
         self._model = model
@@ -103,9 +104,7 @@ class OpenAIChatClient:
         if client is not None:
             self._client = client
         else:
-            self._client = load_openai_client()
-            if api_base and hasattr(self._client, "base_url"):
-                self._client.base_url = api_base
+            self._client = load_openai_client(local=use_local, api_base=api_base)
 
     def complete(
         self,
