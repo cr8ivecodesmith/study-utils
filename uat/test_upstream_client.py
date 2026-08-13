@@ -4,9 +4,10 @@ Tests the /upstream/{model_id}/{endpoint} route against a llama-swap instance.
 
 Usage::
 
-    uv run python -m uat.test_upstream_client                  # uses default config
+    uv run python -m uat.test_upstream_client  # uses default config
     uv run python -m uat.test_upstream_client --config foo.toml
-    API_BASE=http://10.0.0.1:8080 uv run python -m uat.test_upstream_client
+    API_BASE=http://10.0.0.1:8080 uv run \
+        python -m uat.test_upstream_client
 """
 
 from __future__ import annotations
@@ -37,7 +38,9 @@ def _load_config(config_path: Path) -> dict[str, Any]:
     return cfg
 
 
-def _resolve_sample_path(cfg: dict[str, Any], config_dir: Path, key: str) -> Path:
+def _resolve_sample_path(
+    cfg: dict[str, Any], config_dir: Path, key: str
+) -> Path:
     sample_file = cfg.get(key, {}).get("file", "samples/doc-page-1.png")
     p = Path(sample_file)
     if not p.is_absolute():
@@ -306,12 +309,17 @@ def test_pyannote(cfg: dict[str, Any], config_dir: Path) -> bool:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="UAT script for llama-swap upstream client")
+    parser = argparse.ArgumentParser(
+        description="UAT script for llama-swap upstream client"
+    )
     parser.add_argument(
         "--config",
         type=str,
         default=None,
-        help="Path to TOML config file (default: uat/upstream_client_config.toml)",
+        help=(
+            "Path to TOML config file "
+            "(default: uat/upstream_client_config.toml)"
+        ),
     )
     args = parser.parse_args()
 

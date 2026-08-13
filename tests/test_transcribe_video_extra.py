@@ -229,7 +229,7 @@ def test_transcribe_video_file(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         tv,
         "split_video_to_audio_segments",
-        lambda path: [Path(f"seg_{i}.mp3") for i in range(2)],
+        lambda path, **kwargs: [Path(f"seg_{i}.mp3") for i in range(2)],
     )
     monkeypatch.setattr(
         tv, "transcribe_audio_file", lambda client, seg: f"text-{seg}"
@@ -369,7 +369,9 @@ def test_transcribe_videos(
     out_dir.mkdir()
 
     monkeypatch.setattr(
-        tv, "transcribe_video_file", lambda client, path: "text"
+        tv,
+        "transcribe_video_file",
+        lambda client, path, **kwargs: "text",
     )
     monkeypatch.setattr(tv, "cache_get_final", lambda entry: entry.get("final"))
 

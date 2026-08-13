@@ -19,6 +19,7 @@ Design notes:
 - Avoids global state; cache file path is explicit/deterministic.
 """
 
+import argparse
 import dataclasses
 import json
 import os
@@ -121,6 +122,20 @@ _DEFAULTS = {
         "verbose": False,
     },
 }
+
+_TRANSCRIBE_CONFIG: Optional[TranscribeConfig] = None
+
+
+def _get_config(env: Optional[Dict[str, str]] = None) -> TranscribeConfig:
+    """Return the lazily-loaded transcribe-video config.
+
+    First call resolves and loads the TOML, subsequent calls return the same
+    instance without re-reading the file.
+    """
+    global _TRANSCRIBE_CONFIG  # noqa: PLW0603
+    if _TRANSCRIBE_CONFIG is None:
+        _TRANSCRIBE_CONFIG = load_config(env=env)
+    return _TRANSCRIBE_CONFIG
 
 
 def _require_positive_int(value: Any, key: str) -> int:
@@ -434,6 +449,174 @@ def _handle_config_path(args: Any) -> int:
         return 1
 
 
+def _handle_config_dispatch(args: Any) -> int:
+    """Route to the active config subcommand handler."""
+    command = getattr(args, "config_command", "path")
+    if command == "init":
+        return _handle_config_init(args)
+    if command == "validate":
+        return _handle_config_validate(args)
+    if command == "path":
+        return _handle_config_path(args)
+    print(f"Unknown config subcommand: {command}", file=sys.stderr)
+    return 1
+
+
+def _to_path(value: str | None) -> Path | list:
+    """Convert a possibly-None path string to a resolved Path."""
+    if not value:
+        return []
+    return Path(value).expanduser().resolve()
+
+
+def _add_transcribe_flags(parser: "argparse.ArgumentParser") -> None:
+    """Add the standard transcribe flags to an existing parser."""
+    parser.add_argument(
+        "TARGET",
+        help="Path to an .mp4 file or a directory containing .mp4 files",
+    )
+    parser.add_argument(
+        "-o",
+        "--output-dir",
+        dest="output_dir",
+        help="Directory to write transcripts (default: cwd)",
+    )
+    parser.add_argument(
+        "-p",
+        "--prefix",
+        dest="prefix",
+        action="append",
+        help=(
+            "Composable prefix parts (repeatable). Format: "
+            "text:VALUE | counter:N|NN|NNN|NNNN. Order is preserved. "
+            "Example: -p 'text:Intro' -p 'counter:NN' -p 'text: '. "
+            "Legacy 'sep:VALUE' is treated as text:VALUE."
+        ),
+    )
+    parser.add_argument(
+        "-l",
+        "--list",
+        dest="list_only",
+        action="store_true",
+        help="List discovered .mp4 files and exit",
+    )
+    parser.add_argument(
+        "-r",
+        "--recursive",
+        dest="recursive",
+        action="store_true",
+        help="Traverse subfolders of the target directory",
+    )
+    parser.add_argument(
+        "--smart-names",
+        dest="smart_names",
+        action="store_true",
+        help="Generate smart output names from directory structure",
+    )
+    parser.add_argument(
+        "--use-ai",
+        dest="use_ai",
+        action="store_true",
+        help="Use OpenAI to refine smart names (optional)",
+    )
+    parser.add_argument(
+        "--names-file",
+        dest="names_file",
+        help=(
+            "Path to cache file for proposed names (defaults to a hidden file "
+            "in the target root)"
+        ),
+    )
+    parser.add_argument(
+        "--refresh-names",
+        dest="refresh_names",
+        action="store_true",
+        help=(
+            "Regenerate names for discovered files (overwrites cache entries)"
+        ),
+    )
+
+
+def _build_config_subcommands(parent: "argparse.ArgumentParser") -> None:
+    """Build the config sub-subparsers on *parent*."""
+    subparsers = parent.add_subparsers(dest="config_command", required=True)
+
+    init_p = subparsers.add_parser(
+        "init", help="Write the default config template."
+    )
+    init_p.add_argument(
+        "--path",
+        type=str,
+        default=None,
+        help="Destination for the config TOML.",
+    )
+    init_p.add_argument(
+        "--force", action="store_true", help="Overwrite existing file."
+    )
+
+    val_p = subparsers.add_parser(
+        "validate", help="Validate the active config file."
+    )
+    val_p.add_argument(
+        "--path",
+        type=str,
+        default=None,
+        help="Path to the config TOML (defaults to resolved).",
+    )
+    val_p.add_argument(
+        "--quiet", action="store_true", help="Suppress success output."
+    )
+
+    path_p = subparsers.add_parser(
+        "path", help="Print the resolved config path."
+    )
+    path_p.add_argument(
+        "--path",
+        type=str,
+        default=None,
+        help="Optional path override to resolve/normalise.",
+    )
+
+
+def _build_parser() -> "argparse.ArgumentParser":
+    """Build the unified argument parser for transcribe-video."""
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="study transcribe-video",
+        description="Transcribe MP4 video(s) using Whisper.",
+    )
+    subparsers = parser.add_subparsers(dest="command", required=False)
+
+    # Default transcribe mode (unnamed key, all transcribe flags attached).
+    main_p = subparsers.add_parser(None, help="Transcribe videos (default)")
+    _add_transcribe_flags(main_p)
+
+    # Config command tier.
+    cfg_p = subparsers.add_parser("config", help="Manage configuration.")
+    _build_config_subcommands(cfg_p)
+
+    return parser
+
+
+def _parse_known(
+    parser: "argparse.ArgumentParser", args=None
+) -> argparse.Namespace:
+    """Parse args using parse_known_args and fix up positional TARGET.
+
+    When subparsers consume all positionals into 'command', unrecognized
+    ones remain in the remaining list returned by parse_known_args().
+    This helper moves the first remaining positional into TARGET if needed.
+    """
+    parsed, remaining = parser.parse_known_args(args)
+    if getattr(parsed, "TARGET", None) is None and remaining:
+        for token in remaining:
+            if not token.startswith("-"):
+                parsed.TARGET = token
+                break
+    return parsed
+
+
 def find_video_files(target: Path, recursive: bool = False) -> List[Path]:
     """Return a flat list of `.mp4` files for the given target.
 
@@ -647,9 +830,11 @@ def build_name_mapping(
 
 
 def split_video_to_audio_segments(
-    file_path: Path, exist_delete: bool = True
+    file_path: Path,
+    exist_delete: bool = True,
+    segment_duration_minutes: int = 10,
 ) -> List[Path]:
-    """Extract audio from an mp4 and split into ~10 minute mp3 segments.
+    """Extract audio from an mp4 and split into ~N minute mp3 segments.
 
     Returns a list of mp3 segment file paths. Creates a transient directory
     `<video_stem>_segments` in the current working directory and fills it with
@@ -658,7 +843,9 @@ def split_video_to_audio_segments(
     """
     # Load audio track from the video (requires ffmpeg via pydub)
     full_audio = AudioSegment.from_file(file_path, format="mp4")
-    segment_ms = 10 * 60 * 1000  # 10 minutes in milliseconds
+    segment_ms = (
+        segment_duration_minutes * 60 * 1000
+    )  # N minutes in milliseconds
     chunks = make_chunks(full_audio, segment_ms)
 
     chunk_dir = Path(f"{file_path.stem}_segments")
@@ -694,10 +881,14 @@ def transcribe_audio_file(client: OpenAI, audio_path: Path) -> str:
     )
 
 
-def transcribe_video_file(client: OpenAI, video_path: Path) -> str:
+def transcribe_video_file(
+    client: OpenAI, video_path: Path, segment_duration_minutes: int = 10
+) -> str:
     """Transcribe an mp4 by chunking its audio and concatenating results."""
     print(f"Splitting audio for {video_path.name} ...")
-    segments = split_video_to_audio_segments(video_path)
+    segments = split_video_to_audio_segments(
+        video_path, segment_duration_minutes=segment_duration_minutes
+    )
     print(f"Segments directory: {segments[0].parent if segments else 'N/A'}")
 
     transcripts: List[str] = []
@@ -798,9 +989,25 @@ def make_output_filename(
 
 
 def main():
+    # Check if we're in config mode by looking at sys.argv.
+    has_config = (
+        hasattr(sys, "argv") and len(sys.argv) > 1 and sys.argv[1] == "config"
+    )
+
+    if has_config:
+        parser = _build_parser()
+        args, remaining = parser.parse_known_args()
+        if getattr(args, "command", None) == "config":
+            return _handle_config_dispatch(args)
+        # Fall through to transcribe mode with config values.
+        # Remaining positional will be handled by the TRANSACT path below.
+
+    # Transcribe flow — use _parse_transcribe_args for backward compatibility.
     args = _parse_transcribe_args()
+    cfg = _get_config() if hasattr(args, "use_ai") else None
+
     target_path = Path(args.TARGET).expanduser().resolve()
-    video_files = _discover_video_files(target_path, args.recursive)
+    video_files = _discover_video_files(target_path, recursive=args.recursive)
 
     if args.list_only:
         _handle_list_mode(args, video_files, target_path)
@@ -813,7 +1020,7 @@ def main():
     out_dir = _prepare_output_dir(args.output_dir)
     client = load_client(
         local=_TRANSCRIBE_LLM["USE_LOCAL"],
-        api_base=_TRANSCRIBE_LLM["API_BASE"],
+        api_base=_TRANSCRIBE_LLM.get("API_BASE", "http://localhost:8080/v1"),
     )
     parsed_prefix = parse_prefix_parts(args.prefix)
     names_entries = _prepare_names_for_run(
@@ -827,6 +1034,9 @@ def main():
         names_entries,
         out_dir,
         args.smart_names,
+        segment_duration_minutes=(
+            cfg.audio.segment_duration_minutes if cfg else 10
+        ),
     )
     print("Done!")
 
@@ -901,7 +1111,14 @@ def _parse_transcribe_args():
             "Regenerate names for discovered files (overwrites cache entries)"
         ),
     )
-    return parser.parse_args()
+    parsed, remaining = parser.parse_known_args()
+    if getattr(parsed, "TARGET", None) is None and remaining:
+        # Move the first unrecognized positional back to TARGET.
+        for token in remaining:
+            if not str(token).startswith("-"):
+                parsed.TARGET = token
+                break
+    return parsed
 
 
 def _discover_video_files(target_path: Path, recursive: bool) -> List[Path]:
@@ -1007,11 +1224,14 @@ def _transcribe_videos(
     names_entries: Dict[Path, Any],
     out_dir: Path,
     use_smart_names: bool,
+    segment_duration_minutes: int = 10,
 ) -> None:
     for idx, video in enumerate(video_files, start=1):
         print(f"Processing: {video.name}")
         try:
-            transcript_text = transcribe_video_file(client, video)
+            transcript_text = transcribe_video_file(
+                client, video, segment_duration_minutes=segment_duration_minutes
+            )
         except Exception as exc:
             print(f"Failed to transcribe {video.name}: {exc}")
             continue

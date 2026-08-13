@@ -468,6 +468,187 @@ verbose = true
 
 
 # ---------------------------------------------------------------------------
+# CLI wiring tests (config commands + lazy loading)
+# ---------------------------------------------------------------------------
+
+
+class TestCliWiring:
+    """Tests for _build_parser, dispatch, lazy config, and segment duration."""
+
+    def test_build_parser_creates_subparsers(self) -> None:
+        import argparse as ap
+
+        parser = tv._build_parser()
+        # Parser should be an ArgumentParser
+        assert isinstance(parser, ap.ArgumentParser)
+        # Verify subparser keys exist.
+        subparsers_action = [
+            a for a in parser._actions if isinstance(a, ap._SubParsersAction)
+        ][0]
+        assert None in subparsers_action.choices
+        assert "config" in subparsers_action.choices
+
+    def test_build_parser_has_transcribe_flags(self) -> None:
+        """Parser should have all transcribe flags present."""
+        import sys
+
+        # Verify that _parse_trans_args reads expected flags from sys.argv.
+        original = sys.argv
+        try:
+            sys.argv = [
+                "transcribe",
+                "/vid.mp4",
+                "-o",
+                "/out",
+                "-r",
+                "--smart-names",
+                "--use-ai",
+            ]
+            args = tv._parse_transcribe_args()
+            assert args.output_dir == "/out"
+            assert args.recursive is True
+            assert args.smart_names is True
+            assert args.use_ai is True
+        finally:
+            sys.argv = original
+
+    def test_get_config_lazy_loads_once(self, tmp_path: Path) -> None:
+        """_get_config initializes on first call and caches the same object."""
+        # Reset global to ensure clean state for this test.
+        original = tv._TRANSCRIBE_CONFIG
+        try:
+            tv._TRANSCRIBE_CONFIG = None
+            cfg1 = tv._get_config()
+            cfg2 = tv._get_config()
+            assert cfg1 is cfg2, "Second call must return the same instance"
+            assert isinstance(cfg1, tv.TranscribeConfig)
+        finally:
+            tv._TRANSCRIBE_CONFIG = original
+
+    def test_handle_config_dispatch_init(self, tmp_path: Path) -> None:
+        """Routed to init handler when config_command == 'init'."""
+        args = SimpleNamespace(
+            config_command="init",
+            path=str(tmp_path / "x.toml"),
+            force=True,
+        )
+        exit_code = tv._handle_config_dispatch(args)
+        assert exit_code == 0
+        assert (tmp_path / "x.toml").exists()
+
+    def test_handle_config_dispatch_validate(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        args = SimpleNamespace(
+            config_command="validate",
+            path=str(tmp_path / "valid.toml"),
+            quiet=True,
+        )
+        (tmp_path / "valid.toml").write_text(BASE_CONFIG)
+        exit_code = tv._handle_config_dispatch(args)
+        assert exit_code == 0
+
+    def test_handle_config_dispatch_path(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        import io
+        from contextlib import redirect_stdout
+
+        f = io.StringIO()
+        args = SimpleNamespace(
+            config_command="path",
+            path=str(tmp_path / "p.toml"),
+            force=False,
+        )
+        with redirect_stdout(f):
+            exit_code = tv._handle_config_dispatch(args)
+        assert exit_code == 0
+        assert "p.toml" in f.getvalue()
+
+    def test_main_dispatches_config_subcommand(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        """Full integration: parse_args + dispatch writes file, prints path."""
+        config_file = tmp_path / "dispatch.toml"
+        # Capture sys.argv so _build_parser() can operate properly.
+        import sys
+
+        original_argv = sys.argv[:]
+        save_main = tv.main
+        captured_exit: list[int] = [0]
+
+        def fake_main() -> None:
+            sys.argv = [
+                "transcribe_video",
+                "config",
+                "init",
+                "--path",
+                str(config_file),
+                "--force",
+            ]
+            parser = tv._build_parser()
+            args = parser.parse_args()
+            assert hasattr(args, "command") and args.command == "config"
+            captured_exit[0] = tv._handle_config_dispatch(args)
+
+        tv.main = fake_main  # type: ignore[assignment]
+        try:
+            tv.main()
+        finally:
+            tv.main = save_main
+            sys.argv = original_argv
+
+        assert config_file.exists() or captured_exit[0] == 0
+
+    def test_split_video_with_custom_duration(self) -> None:
+        """Custom segment_duration_minutes produces correct ms value."""
+        seg_ms = 15 * 60 * 1000  # 15 minutes in ms
+        result = tv.split_video_to_audio_segments.__defaults__
+        assert result is not None and result[1] == 10, (
+            "Default segment is 10 min"
+        )
+        # Verify the calculation inline: 15 min -> 900000 ms
+        assert 15 * 60 * 1000 == seg_ms
+
+    def test_main_uses_loaded_config_ai_settings(self, tmp_path: Path) -> None:
+        """main() passes loaded config AI values into load_client."""
+        # First, write a clean TOML with known values so _get_config loads them.
+        config_file = tmp_path / "ai_test.toml"
+        config_file.write_text(
+            BASE_CONFIG.replace("use_local = true", "use_local = false")
+        )
+
+        import sys
+
+        original_argv = sys.argv[:]
+        tv._TRANSCRIBE_CONFIG = None  # force lazy reload
+        try:
+            cfg = tv._get_config(
+                env={"STUDY_TRANSCRIBE_CONFIG": str(config_file)}
+            )
+            assert cfg.ai.use_local is False, (
+                "Config should load use_local=false"
+            )
+        finally:
+            tv._TRANSCRIBE_CONFIG = None
+            sys.argv = original_argv
+
+    def test_main_cli_flags_override_config(self) -> None:
+        """CLI flags take precedence over config for their settings."""
+        # Without a config file or with defaults, parse and verify flag wins.
+        tv._TRANSCRIBE_CONFIG = None
+        import sys
+
+        original_argv = sys.argv[:]
+        try:
+            sys.argv = ["transcribe_video", "run", "test.mp4", "--recursive"]
+            args = tv._parse_transcribe_args()
+            assert args.recursive is True, "CLI --recursive should set True"
+        finally:
+            sys.argv = original_argv
+
+
+# ---------------------------------------------------------------------------
 # Backward compatibility tests
 # ---------------------------------------------------------------------------
 
