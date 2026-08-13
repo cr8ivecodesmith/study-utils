@@ -44,51 +44,51 @@
 - Stepwise checklist:
 
 **Step 1 — Dataclasses + constants (transcribe_video.py, ~25 lines)**
-- [ ] Add `$DEFAULT_CONFIG_PATH = config_path("transcribe")` from `core.config`.
-- [ ] Add `CONFIG_PATH_ENV = "STUDY_TRANSCRIBE_CONFIG"` constant.
-- [ ] Add four frozen dataclasses: `AIConfig`, `AudioConfig`, `NamesConfig`, `LoggingConfig` plus `TranscribeConfig` composing the four fields into a single config type with additional top-level attributes (`target_dir`, `output_dir`, `prefix`, etc.).
+- [x] Add `$DEFAULT_CONFIG_PATH = config_path("transcribe")` from `core.config`.
+- [x] Add `CONFIG_PATH_ENV = "STUDY_TRANSCRIBE_CONFIG"` constant.
+- [x] Add four frozen dataclasses: `AIConfig`, `AudioConfig`, `NamesConfig`, `LoggingConfig` plus `TranscribeConfig` composing the four fields into a single config type with additional top-level attributes (`target_dir`, `output_dir`, `prefix`, etc.).
 
 **Step 2 — Validation helpers (transcribe_video.py, ~35 lines)**
-- [ ] Port validation helpers from `rag/config.py`: `_require_positive_int`, `_require_non_negative_int`, `_require_bool`. These raise a descriptive exception (`ConfigError`) on type/value mismatch, mirroring RAG's behavior.
+- [x] Port validation helpers from `rag/config.py`: `_require_positive_int`, `_require_non_negative_int`, `_require_bool`. These raise a descriptive exception (`ConfigError`) on type/value mismatch, mirroring RAG's behavior.
 
 **Step 3 — Builder functions + defaults tree (transcribe_video.py, ~40 lines)**
-- [ ] Add `default_tree() -> dict` returning a deep copy of `_DEFAULT_SETTINGS` so callers may mutate without affecting subsequent calls.
-- [ ] Add `merge_defaults(tree, toml_data)` from `core.config_utils.merge_default`; update to handle nested table structures for the config sections if needed.
-- [ ] Implement `_build_config(toml_data) -> TranscribeConfig` that combines all section builders and adds CLI-level attributes (output_dir, prefix, segment_duration_minutes, recursive).
-- [ ] Implement `config_template() -> str` returning template content via `importlib.resources`.
+- [x] Add `default_tree() -> dict` returning a deep copy of `_DEFAULT_SETTINGS` so callers may mutate without affecting subsequent calls.
+- [x] Add `merge_defaults(tree, toml_data)` from `core.config_utils.merge_default`; update to handle nested table structures for the config sections if needed.
+- [x] Implement `_build_config(toml_data) -> TranscribeConfig` that combines all section builders and adds CLI-level attributes (output_dir, prefix, segment_duration_minutes, recursive).
+- [x] Implement `config_template() -> str` returning template content via `importlib.resources`.
 
 **Step 4 — Path resolution + load_config (transcribe_video.py, ~30 lines)**
-- [ ] Implement `resolve_config_path(explicit_path=None) -> Path` following RAG: explicit > env var ($STUDY_TRANSCRIBE_CONFIG) > default workspace config dir. Accepts absolute or relative path, resolves it via the workspace.
-- [ ] Implement `load_config(config_dir=None, explicit_path=None) -> TranscribeConfig` that reads TOML with `tomllib`, calls `merge_defaults` then `_build_config`. Handles file-not-found by falling back to defaults (same behavior as today).
+- [x] Implement `resolve_config_path(explicit_path=None) -> Path` following RAG: explicit > env var ($STUDY_TRANSCRIBE_CONFIG) > default workspace config dir. Accepts absolute or relative path, resolves it via the workspace.
+- [x] Implement `load_config(config_dir=None, explicit_path=None) -> TranscribeConfig` that reads TOML with `tomllib`, calls `merge_defaults` then `_build_config`. Handles file-not-found by falling back to defaults (same behavior as today).
 
 **Step 5 — Config subcommand handlers (~40 lines)**
-- [ ] Add `_handle_init(args)` — resolve path, write template if not exists, handle --force flag, print destination path. Return exit code 0 on success, 2 on error. Mirrors RAG's init semantics exactly.
-- [ ] Add `_handle_validate(args)` — load config (explicit or resolved), validate and print key settings; return 0/2 with appropriate messages.
-- [ ] Add `_handle_path(args)` — resolve and print the expected config path only. Returns 0 on success, 1 if resolution fails, 2 if invalid TOML.
+- [x] Add `_handle_init(args)` — resolve path, write template if not exists, handle --force flag, print destination path. Return exit code 0 on success, 2 on error. Mirrors RAG's init semantics exactly.
+- [x] Add `_handle_validate(args)` — load config (explicit or resolved), validate and print key settings; return 0/2 with appropriate messages.
+- [x] Add `_handle_path(args)` — resolve and print the expected config path only. Returns 0 on success, 1 if resolution fails, 2 if invalid TOML.
 
 **Step 6 — Unified parser + main() dispatch (~40 lines)**
-- [ ] Create `_build_parser() -> argparse.ArgumentParser` with subparsers for config subcommands (init, validate, path) and the default transcribe flow as the fallback when no subcommand is provided. Keep positional TARGET support in the default mode. The existing `--output`, `--prefix`, and other flags are inherited by both config and non-config paths for compatibility.
-- [ ] Update `main()` to call `_build_parser()`, dispatch config subcommands before entering normal transcribe flow. Load config lazily so main path avoids unnecessary work when no --config flag is used.
+- [x] Create `_build_parser() -> argparse.ArgumentParser` with subparsers for config subcommands (init, validate, path) and the default transcribe flow as the fallback when no subcommand is provided. Keep positional TARGET support in the default mode. The existing `--output`, `--prefix`, and other flags are inherited by both config and non-config paths for compatibility.
+- [x] Update `main()` to call `_build_parser()`, dispatch config subcommands before entering normal transcribe flow. Load config lazily so main path avoids unnecessary work when no --config flag is used.
 
 **Step 7 — Template file + packaging (~10 lines total)**
-- [ ] Create `src/study_utils/transcribe_video/transform.toml` with all default key-value pairs reflecting current hardcoded values.
-- [ ] Register in `core/config_templates.py` `_TEMPLATES`: add entry with name="transcribe", template_filename="transform.toml". Follow the existing pattern (`name`, `template_filename`, and either a factory function or path attributes).
-- [ ] Update `pyproject.toml` — add `"transcribe_video/*.toml"` to `[tool.setuptools.package-data]`.
+- [x] Create `src/study_utils/transcribe_video/transform.toml` with all default key-value pairs reflecting current hardcoded values.
+- [x] Register in `core/config_templates.py` `_TEMPLATES`: add entry with name="transcribe", template_filename="transform.toml". Follow the existing pattern (`name`, `template_filename`, and either a factory function or path attributes).
+- [x] Update `pyproject.toml` — add `"transcribe_video/*.toml"` to `[tool.setuptools.package-data]`.
 
 **Step 8 — Tests (tests/test_transcribe_config.py, ~30 tests)**
-- [ ] Template: `config_template()` returns valid TOML; template content parses into a dict with all expected keys.
-- [ ] Write/read: `write_template(honours overwrite, writes correct paths and permissions`.
-- [ ] Path resolution: explicit > env var > default workspace config dir (three-way precedence).
-- [ ] Deep copy: mutating `default_tree()` result does not affect the next call.
-- [ ] Merge defaults + validation for each section separately (8+ test cases): AI config with negative int, wrong bool; names with invalid path type; logging with unrecognized level string.
-- [ ] Load_config happy path and error paths with invalid TOML values.
-- [ ] Config subcommand handlers: init, validate, path — including `--path` overrides and force flags (mirrors RAG's integration tests).
-- [ ] Backward-compat test: run transcribe flow without any config file present; config resolution gracefully falls back to defaults, `_parse_transcribe_args()` works unchanged.
+- [x] Template: `config_template()` returns valid TOML; template content parses into a dict with all expected keys.
+- [x] Write/read: `write_template(honours overwrite, writes correct paths and permissions`.
+- [x] Path resolution: explicit > env var > default workspace config dir (three-way precedence).
+- [x] Deep copy: mutating `default_tree()` result does not affect the next call.
+- [x] Merge defaults + validation for each section separately (8+ test cases): AI config with negative int, wrong bool; names with invalid path type; logging with unrecognized level string.
+- [x] Load_config happy path and error paths with invalid TOML values.
+- [x] Config subcommand handlers: init, validate, path — including `--path` overrides and force flags (mirrors RAG's integration tests).
+- [x] Backward-compat test: run transcribe flow without any config file present; config resolution gracefully falls back to defaults, `_parse_transcribe_args()` works unchanged.
 
 **Step 9 — Verification**
-- [ ] Run `uv run pytest tests/test_transcribe_config.py` independently → all pass with coverage on new code.
-- [ ] Run `uv run pytest tests/` full suite → no regression (verify existing `test_transcribe_video_extra.py` still passes).
-- [ ] Run `uv run ruff check src/study_utils/transcribe_video.py src/study_utils/core/config_templates.py` → lints clean, no changes needed to coverage.xml baseline.
+- [x] Run `uv run pytest tests/test_transcribe_config.py` independently → all pass with coverage on new code.
+- [x] Run `uv run pytest tests/` full suite → no regression (verify existing `test_transcribe_video_extra.py` still passes).
+- [x] Run `uv run ruff check src/study_utils/transcribe_video.py src/study_utils/core/config_templates.py` → lints clean, no changes needed to coverage.xml baseline.
 
 ## Test Plan
 ### Unit (tests/test_transcribe_config.py — ~30 tests)
