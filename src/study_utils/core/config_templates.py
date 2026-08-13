@@ -80,6 +80,14 @@ _TEMPLATES: dict[str, ConfigTemplate] = {
         ),
         package="study_utils.convert_markdown",
     ),
+    "transcribe_video": ConfigTemplate(
+        name="transcribe_video",
+        filename="transform.toml",
+        description=(
+            "Configuration defaults for the transcribe-video workflow."
+        ),
+        package="study_utils.transcribe_video",
+    ),
 }
 
 

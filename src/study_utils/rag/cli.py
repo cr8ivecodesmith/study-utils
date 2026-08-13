@@ -777,7 +777,6 @@ def _build_embedder(cfg: config_mod.RagConfig) -> ingest_mod.EmbeddingClient:
     )
 
 
-
 def _build_chat_client(cfg: config_mod.RagConfig) -> chat_mod.ChatClient:
     openai_cfg = cfg.providers.openai
     services = cfg.services.chat

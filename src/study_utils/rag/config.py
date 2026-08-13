@@ -385,9 +385,7 @@ def _build_service_ai(section: Mapping[str, Any]) -> ServiceAIConfig:
     raw_provider = section.get("provider")
     if raw_provider is None:
         raw_provider = "local"
-    provider = _require_string(
-        raw_provider, field="services.provider"
-    )
+    provider = _require_string(raw_provider, field="services.provider")
     return ServiceAIConfig(
         use_local=use_local,
         api_base=api_base,

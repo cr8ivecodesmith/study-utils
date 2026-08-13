@@ -37,5 +37,6 @@ out/
 
 .envrc
 .codexenv-local
+sandbox/
 
 coverage.xml

@@ -19,28 +19,419 @@ Design notes:
 - Avoids global state; cache file path is explicit/deterministic.
 """
 
+import dataclasses
+import json
 import os
+import re
+import sys
+from copy import deepcopy
+from datetime import datetime, timezone
 from pathlib import Path
 from shutil import rmtree
-from time import sleep
-from typing import Any, Dict, List, Optional, Tuple
-
-import json
-import re
-from datetime import datetime, timezone
 from tempfile import gettempdir
+from time import sleep
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 from openai import OpenAI
 from pydub import AudioSegment
 from pydub.utils import make_chunks
 
-from .core import load_client
+from study_utils.core import load_client
+from study_utils.core.config import TomlConfigError, merge_defaults
+from study_utils.core.config_templates import get_template
+
+try:
+    from pathlib import Path as _PathType
+except ImportError:
+    from pathlib import Path as _PathType  # noqa: F811
 
 _TRANSCRIBE_LLM = {
     "USE_LOCAL": True,
     "API_BASE": "http://localhost:8080/v1",
     "MODEL": os.getenv("TRANSCRIPTION_MODEL", "whisper-3"),
 }
+
+
+class ConfigError(RuntimeError):
+    """Raised when transcribe-video config validation fails."""
+
+
+CONFIG_PATH_ENV = "STUDY_TRANSCRIBE_CONFIG"
+
+DEFAULT_CONFIG_PATH = "config/transcribe.toml"
+
+
+@dataclasses.dataclass(frozen=True)
+class AIConfig:
+    use_local: bool
+    api_base: str
+    provider: str
+    model: str
+    title_model: str
+
+
+@dataclasses.dataclass(frozen=True)
+class AudioConfig:
+    segment_duration_minutes: int
+
+
+@dataclasses.dataclass(frozen=True)
+class NamesConfig:
+    smart_names: bool
+    use_ai_titles: bool
+    output_dir: Optional[_PathType]
+    recursive: bool
+    cache_path: Optional[_PathType]
+
+
+@dataclasses.dataclass(frozen=True)
+class LoggingConfig:
+    level: str
+    verbose: bool
+
+
+@dataclasses.dataclass(frozen=True)
+class TranscribeConfig:
+    ai: AIConfig
+    audio: AudioConfig
+    names: NamesConfig
+    logging: LoggingConfig
+
+
+_DEFAULTS = {
+    "ai": {
+        "use_local": True,
+        "api_base": "http://localhost:8080/v1",
+        "provider": "local",
+        "model": "whisper-3",
+        "title_model": "gpt-4o-mini",
+    },
+    "audio": {
+        "segment_duration_minutes": 10,
+    },
+    "names": {
+        "smart_names": True,
+        "use_ai_titles": False,
+        "output_dir": None,
+        "recursive": True,
+        "cache_path": None,
+    },
+    "logging": {
+        "level": "INFO",
+        "verbose": False,
+    },
+}
+
+
+def _require_positive_int(value: Any, key: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ConfigError(
+            f"'{key}' must be a positive integer, got {type(value).__name__}."
+        )
+    if value <= 0:
+        raise ConfigError(f"'{key}' must be positive, got {value}.")
+
+    return value
+
+
+def _require_non_negative_int(value: Any, key: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ConfigError(
+            f"'{key}' must be an integer, got {type(value).__name__}."
+        )
+    if value < 0:
+        raise ConfigError(f"'{key}' must be non-negative, got {value}.")
+    return value
+
+
+def _require_bool(value: Any, key: str) -> bool:
+    if not isinstance(value, bool):
+        raise ConfigError(
+            f"'{key}' must be a boolean, got {type(value).__name__}."
+        )
+    return value
+
+
+def _require_string(value: Any, key: str) -> str:
+    if not isinstance(value, str):
+        raise ConfigError(
+            f"'{key}' must be a string, got {type(value).__name__}."
+        )
+
+    result = value.strip()
+    if not result:
+        raise ConfigError(f"'{key}' must be a non-empty string.")
+    return result
+
+
+def _coerce_optional_string(value: Any, key: str) -> Optional[str]:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        result = value.strip()
+        return result if result else None
+    raise ConfigError(
+        f"'{key}' must be a string or null, got {type(value).__name__}."
+    )
+
+
+def _coerce_optional_path(value: Any, key: str) -> Optional[Path]:
+    if value is None:
+        return None
+    if isinstance(value, Path):
+        return value
+    if isinstance(value, str):
+        result = value.strip()
+        return Path(result) if result else None
+    raise ConfigError(
+        f"'{key}' must be a path (str/Path) or null, "
+        f"got {type(value).__name__}."
+    )
+
+
+def _build_ai(section: Mapping[str, Any]) -> AIConfig:
+    return AIConfig(
+        use_local=_require_bool(section.get("use_local", True), "ai.use_local"),
+        api_base=(
+            _coerce_optional_string(section.get("api_base"), "ai.api_base")
+            or _DEFAULTS["ai"]["api_base"]
+        ),
+        provider=_coerce_optional_string(section.get("provider"), "ai.provider")
+        or "local",
+        model=_coerce_optional_string(section.get("model"), "ai.model")
+        or "whisper-3",
+        title_model=(
+            _coerce_optional_string(
+                section.get("title_model"), "ai.title_model"
+            )
+            or "gpt-4o-mini"
+        ),
+    )
+
+
+def _build_audio(section: Mapping[str, Any]) -> AudioConfig:
+    return AudioConfig(
+        segment_duration_minutes=_require_positive_int(
+            section.get("segment_duration_minutes", 10),
+            "audio.segment_duration_minutes",
+        ),
+    )
+
+
+def _build_names(section: Mapping[str, Any]) -> NamesConfig:
+    return NamesConfig(
+        smart_names=_require_bool(
+            section.get("smart_names", True), "names.smart_names"
+        ),
+        use_ai_titles=_require_bool(
+            section.get("use_ai_titles", False), "names.use_ai_titles"
+        ),
+        output_dir=_coerce_optional_path(
+            section.get("output_dir"), "names.output_dir"
+        ),
+        recursive=_require_bool(
+            section.get("recursive", True), "names.recursive"
+        ),
+        cache_path=_coerce_optional_path(
+            section.get("cache_path"), "names.cache_path"
+        ),
+    )
+
+
+def _build_logging(section: Mapping[str, Any]) -> LoggingConfig:
+    valid_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+    level = (
+        _coerce_optional_string(section.get("level"), "logging.level") or "INFO"
+    )
+    if level.upper() not in valid_levels:
+        raise ConfigError(
+            f"'logging.level' must be one of {valid_levels}, got '{level}'."
+        )
+    return LoggingConfig(
+        level=level.upper(),
+        verbose=_require_bool(section.get("verbose", False), "logging.verbose"),
+    )
+
+
+def _build_config(tree: Mapping[str, Any]) -> TranscribeConfig:
+    merged = deepcopy(_DEFAULTS)
+    try:
+        merge_defaults(merged, dict(tree))
+    except TomlConfigError as exc:
+        raise ConfigError(str(exc)) from exc
+    return TranscribeConfig(
+        ai=_build_ai(merged["ai"]),
+        audio=_build_audio(merged["audio"]),
+        names=_build_names(merged["names"]),
+        logging=_build_logging(merged["logging"]),
+    )
+
+
+def default_tree() -> Dict[str, Any]:
+    return deepcopy(_DEFAULTS)
+
+
+_DEFAULT_CONFIG_PATH = DEFAULT_CONFIG_PATH
+
+
+def config_template() -> str:
+    """Return the packaged transcribe-video template content."""
+    template = get_template("transcribe_video")
+    return template.read_text()
+
+
+def write_template(
+    path: Path,
+    *,
+    overwrite: bool = False,
+    mode: int = 0o600,
+) -> Path:
+    """Write the packaged template to ``path`` using TOML helper semantics."""
+    tmpl = get_template("transcribe_video")
+    return tmpl.write(path, overwrite=overwrite, mode=mode)
+
+
+def resolve_config_path(
+    explicit_path: Optional[Path] = None,
+    env: Optional[Dict[str, str]] = None,
+) -> Path:
+    """Resolve the config file path.
+
+    Precedence is: explicit argument > environment variable > default.
+    """
+
+    if explicit_path is not None:
+        return Path(explicit_path).expanduser().resolve()
+
+    env_path = (env or {}).get(CONFIG_PATH_ENV)
+    if env_path:
+        return Path(env_path).expanduser().resolve()
+
+    data_home_env = os.getenv("STUDY_UTILS_DATA_HOME")
+    if data_home_env:
+        base = Path(data_home_env) / "config" / "transcribe.toml"
+    else:
+        from pathlib import Path as _PathType
+
+        config_dir = _PathType.home() / ".study_utils" / "config"
+        base = config_dir / "transcribe.toml"
+
+    return base.expanduser().resolve()
+
+
+def load_config(
+    explicit_path: Optional[Path] = None,
+    env: Optional[Dict[str, str]] = None,
+) -> TranscribeConfig:
+    """Load and validate the transcribe-video config from TOML file.
+
+    Falls back to defaults when no config file is found.
+    """
+    try:
+        import tomllib
+    except ModuleNotFoundError:  # pragma: no cover - defensive guard
+        raise ConfigError("tomllib is required (Python 3.11+).")
+
+    config_path = resolve_config_path(explicit_path, env)
+
+    if not config_path.exists():
+        return _build_config(default_tree())
+
+    try:
+        with config_path.open("rb") as fh:
+            raw = fh.read()
+            text = raw.decode("utf-8")
+        # Handle bare 'null' literals for Python 3.12+ tomllib.
+    except Exception as exc:
+        raise ConfigError(
+            f"Failed to read config {config_path}: {exc}"
+        ) from exc
+
+    try:
+        import re as _re
+
+        clean_text = _re.sub(r"(\w+)\s*=\s*null\b", r'\1=""', text)
+        toml_data = tomllib.loads(clean_text)
+    except Exception as exc:
+        raise ConfigError(
+            f"Failed to parse config {config_path}: {exc}"
+        ) from exc
+
+    return _build_config(toml_data)
+
+
+_handle_config_log = None
+
+
+def _handle_config_init(args: Any) -> int:
+    """Handle the 'config init' subcommand.
+
+    Writes template and returns exit code.
+    """
+
+    global _handle_config_log  # noqa: PLW0603 _handle_config_log used for testing
+
+    path = args.path
+    force = getattr(args, "force", False)
+
+    resolved_path = resolve_config_path(
+        explicit_path=Path(path).expanduser().resolve() if path else None,
+    )
+
+    try:
+        write_template(resolved_path, overwrite=force)
+    except TomlConfigError as exc:
+        stderr = getattr(sys, "stderr", None) or sys.stderr
+        print(f"Error: {exc}", file=stderr or None)
+        return 2
+
+    print(f"Configuration written to {resolved_path}")
+    return 0
+
+
+def _handle_config_validate(args: Any) -> int:
+    """Handle the 'config validate' subcommand. Validates config file."""
+    try:
+        expl = (
+            Path(args.path).expanduser().resolve()
+            if getattr(args, "path", None)
+            else None
+        )
+        cfg = load_config(explicit_path=expl)
+    except ConfigError as exc:
+        stderr = getattr(sys, "stderr", None) or sys.stderr
+        print(f"Configuration error: {exc}", file=stderr or None)
+        return 2
+
+    lines = [
+        "Configuration OK",
+        f"  model={cfg.ai.model}, title_model={cfg.ai.title_model}",
+        f"  api_base={cfg.ai.api_base}, use_local={cfg.ai.use_local}",
+        f"  segment_duration_minutes={cfg.audio.segment_duration_minutes}",
+        f"  smart_names={cfg.names.smart_names}, "
+        f"recursive={cfg.names.recursive}",
+        f"  logging.level={cfg.logging.level}, verbose={cfg.logging.verbose}",
+    ]
+    for line in lines:
+        print(line)
+    return 0
+
+
+def _handle_config_path(args: Any) -> int:
+    """Handle the 'config path' subcommand. Prints resolved config path."""
+    expl = (
+        Path(args.path).expanduser().resolve()
+        if getattr(args, "path", None)
+        else None
+    )
+    try:
+        cfg_path = resolve_config_path(explicit_path=expl)
+        print(cfg_path)
+        return 0
+    except Exception as exc:
+        stderr = getattr(sys, "stderr", None) or sys.stderr
+        print(f"Error resolving config path: {exc}", file=stderr or None)
+        return 1
 
 
 def find_video_files(target: Path, recursive: bool = False) -> List[Path]:
@@ -287,7 +678,11 @@ def split_video_to_audio_segments(
 
 
 def transcribe_audio_file(client: OpenAI, audio_path: Path) -> str:
-    """Transcribe a single audio file using the configured model (whisper-3 by default) and return plain text."""
+    """Transcribe audio to text using the configured Whisper model.
+
+    Returns plain text output from the transcription API.
+    """
+
     response = client.audio.transcriptions.create(
         model=os.getenv("TRANSCRIPTION_MODEL", "whisper-3"),
         file=audio_path.open("rb"),

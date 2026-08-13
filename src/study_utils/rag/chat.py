@@ -104,7 +104,10 @@ class OpenAIChatClient:
         if client is not None:
             self._client = client
         else:
-            self._client = load_openai_client(local=use_local, api_base=api_base)
+            self._client = load_openai_client(
+                local=use_local,
+                api_base=api_base,
+            )
 
     def complete(
         self,

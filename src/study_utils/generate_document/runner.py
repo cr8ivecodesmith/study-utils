@@ -8,12 +8,12 @@ from typing import Dict, List, Sequence, Set, Tuple
 
 from study_utils.core import iter_text_files, load_client, read_text_file
 
+from .config import load_documents_config
+
 _DEFAULT_LOCAL_LLM = {
     "USE_LOCAL": True,
     "API_BASE": "http://localhost:8080/v1",
 }
-
-from .config import load_documents_config
 
 
 def build_reference_block(files: Sequence[Tuple[Path, str]]) -> str:

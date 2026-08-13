@@ -291,12 +291,19 @@ def test_openai_chat_client_initializes_from_loader(monkeypatch):
 
     dummy_client = DummyClient()
 
-    def _mock_load_openai_client(local: bool = False, api_base: str | None = None):
+    def _mock_load_openai_client(
+        local: bool = False,
+        api_base: str | None = None,
+    ):
         if api_base and hasattr(dummy_client, "base_url"):
             dummy_client.base_url = api_base
         return dummy_client
 
-    monkeypatch.setattr(chat_mod, "load_openai_client", _mock_load_openai_client)
+    monkeypatch.setattr(
+        chat_mod,
+        "load_openai_client",
+        _mock_load_openai_client,
+    )
 
     chat_client = chat_mod.OpenAIChatClient(
         model="gpt-4o-mini",

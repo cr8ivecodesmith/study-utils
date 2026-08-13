@@ -126,7 +126,10 @@ def test_upstream_client_default_url(
         load_llama_swap_upstream_client()
         mock_request.assert_called_once()
         call_args = mock_request.call_args
-        assert call_args.kwargs["url"] == "http://localhost:8080/upstream/default/chat/completions"
+        assert (
+            call_args.kwargs["url"]
+            == "http://localhost:8080/upstream/default/chat/completions"
+        )
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
 
@@ -139,7 +142,10 @@ def test_upstream_client_custom_model_id(
         mock_request.assert_called_once()
         call_args = mock_request.call_args
         url = call_args.kwargs["url"]
-        assert url == "http://localhost:8080/upstream/llama-3.1-8b/chat/completions"
+        assert (
+            url
+            == "http://localhost:8080/upstream/llama-3.1-8b/chat/completions"
+        )
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
 
@@ -151,7 +157,10 @@ def test_upstream_client_custom_endpoint(
         load_llama_swap_upstream_client(endpoint="completions")
         mock_request.assert_called_once()
         call_args = mock_request.call_args
-        assert call_args.kwargs["url"] == "http://localhost:8080/upstream/default/completions"
+        assert (
+            call_args.kwargs["url"]
+            == "http://localhost:8080/upstream/default/completions"
+        )
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
 

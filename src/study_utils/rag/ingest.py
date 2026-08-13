@@ -55,7 +55,8 @@ class OpenAIEmbeddingClient:
             self._client = client
         else:
             self._client = _build_openai_client(
-                api_base=api_base, use_local=use_local,
+                api_base=api_base,
+                use_local=use_local,
             )
         self._model = model
         self._timeout = request_timeout

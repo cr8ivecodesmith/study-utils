@@ -258,7 +258,10 @@ def test_openai_embedding_client_builds_client(monkeypatch):
     )
     monkeypatch.setattr(ingest, "OpenAI", object())
 
-    def _mock_load_openai_client(local: bool = False, api_base: str | None = None):
+    def _mock_load_openai_client(
+        local: bool = False,
+        api_base: str | None = None,
+    ):
         if api_base and hasattr(stub_client, "base_url"):
             stub_client.base_url = api_base
         return stub_client

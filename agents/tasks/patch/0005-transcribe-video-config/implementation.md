@@ -109,7 +109,9 @@
 - No source changes to `test_transcribe_video_extra.py`. All ~20 existing tests validate function-level behavior that is independent of the config layer. One integration test validates end-to-end CLI entry point (`argparse` path through `_build_parser()`).
 
 ## Sandbox convention (strong adherence)
-When running simulated tests for this feature, use the project-level `sandbox/` folder and create subfolders within it for each command or test scenario. This ensures consistent, predictable paths during tool testing rather than relying on temp directories.
+When running simulated tests for this feature, use the project-level `sandbox/` folder and create subfolders within it for each command or test scenario. This ensures consistent, predictable paths during tool testing rather than relying on `$HOME` or `/tmp`.
+
+Each config subcommand (`config init`, `config validate`, `config path`) gets its own sandbox subfolder (e.g. `sandbox/config-init/`, `sandbox/config-validate/`). Tests set `STUDY_UTILS_DATA_HOME=sandbox/<test-name>/` so that `resolve_config_path()` resolves to `$HOME/.study_utils/config/transcribe.toml` relative to the sandbox root. CLI invocations should always specify `--path` pointing into the sandbox subfolder or set `STUDY_TRANSCRIBE_CONFIG` env var for explicit file resolution. This guarantees that config file reads/writes and path validation exercises occur within an isolated, reproducible location rather than depending on a specific user's home directory layout.
 
 ## Operability
 - **Logging**: existing stdout prints remain unchanged; new config validation errors print to stderr via `ConfigError` (consistent with RAG). Logging level is a config key applied when the transcribe flow starts.

@@ -50,6 +50,7 @@ study_utils = [
   "generate_document/documents.toml",
   "resources/*.css",
   "convert_markdown/*.toml",
+  "transcribe_video/*.toml",
 ]
 
 [dependency-groups]

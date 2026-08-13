@@ -64,7 +64,9 @@ def test_ai_title_helpers_use_openai(
     stub.queue_response("Generated Title\n")
 
     def _mock_load_client(
-        local: bool = True, api_base: str | None = None, _stub=stub,
+        local: bool = True,
+        api_base: str | None = None,
+        _stub=stub,
     ):
         return _stub
 
@@ -75,7 +77,9 @@ def test_ai_title_helpers_use_openai(
     stub2.queue_response("Content Title")
 
     def _mock_load_client2(
-        local: bool = True, api_base: str | None = None, _stub=stub2,
+        local: bool = True,
+        api_base: str | None = None,
+        _stub=stub2,
     ):
         return _stub
 
@@ -96,7 +100,9 @@ def test_ai_title_helpers_use_openai(
     bad_client = BadClient()
 
     def _mock_load_client3(
-        local: bool = True, api_base: str | None = None, _client=bad_client,
+        local: bool = True,
+        api_base: str | None = None,
+        _client=bad_client,
     ):
         return _client
 
@@ -116,7 +122,8 @@ def test_ai_title_helpers_use_openai(
         chat = Chat()
 
     def _mock_generic(
-        local: bool = True, api_base: str | None = None,
+        local: bool = True,
+        api_base: str | None = None,
     ):
         return GenericClient()
 

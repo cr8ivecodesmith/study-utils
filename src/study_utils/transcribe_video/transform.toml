@@ -1,0 +1,27 @@
+# Study Utils transcribe-video configuration template.
+# Generated via `study transcribe-video config init`.
+
+[ai]
+use_local = true
+api_base = "http://localhost:8080/v1"
+provider = "local"
+model = "whisper-3"
+title_model = "gpt-4o-mini"
+
+[audio]
+# Segment duration in minutes (chunks audio before sending to Whisper)
+segment_duration_minutes = 10
+
+[names]
+smart_names = true
+use_ai_titles = false
+# Output directory for transcripts. Null = write to current working directory.
+output_dir = ""
+# Recursive search into subdirectories when target is a directory.
+recursive = true
+# Names cache path: null = auto under target root, or explicit file path.
+cache_path = ""
+
+[logging]
+level = "INFO"
+verbose = false

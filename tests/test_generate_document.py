@@ -189,6 +189,7 @@ def test_generate_document_writes_output_with_stubbed_client(
     openai_factory.reset()
     stub = openai_factory()
     stub.queue_response("# Result\n\nGenerated.")
+
     def _mock_load_client(local: bool = False, api_base: str | None = None):
         return stub
 
@@ -217,6 +218,7 @@ def test_generate_document_unknown_type_raises(
     p = tmp_path / "x.txt"
     p.write_text("X", encoding="utf-8")
     config_path = _write_workspace_config(tmp_path, monkeypatch)
+
     def _mock_noop(local: bool = False, api_base: str | None = None):
         return object()
 
@@ -268,7 +270,11 @@ def test_generate_document_raises_when_ai_returns_empty(
     config_path = _write_workspace_config(tmp_path, monkeypatch)
 
     class EmptyClient:
-        def __init__(self, local: bool = False, api_base: str | None = None) -> None:
+        def __init__(
+            self,
+            local: bool = False,
+            api_base: str | None = None,
+        ) -> None:
             message = SimpleNamespace(content=" ")
             choice = SimpleNamespace(message=message)
             self.chat = SimpleNamespace(

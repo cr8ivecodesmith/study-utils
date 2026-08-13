@@ -7,10 +7,6 @@ from rich.console import Console
 
 from ..core import load_client
 
-_QUIZZER_LLM = {
-    "USE_LOCAL": True,
-    "API_BASE": "http://localhost:8080/v1",
-}
 from .utils import (
     _find_config,
     _load_toml,
@@ -23,6 +19,11 @@ from .utils import (
 
 from .manager.quiz import generate_questions, extract_topics
 from .session import run_quiz_session
+
+_QUIZZER_LLM = {
+    "USE_LOCAL": True,
+    "API_BASE": "http://localhost:8080/v1",
+}
 
 
 def _out_dir_for(name: str, cfg: Optional[dict]) -> Path:
