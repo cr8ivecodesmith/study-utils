@@ -270,8 +270,11 @@ def _build_logging(section: Mapping[str, Any]) -> LoggingConfig:
 
 def _build_config(tree: Mapping[str, Any]) -> TranscribeConfig:
     merged = deepcopy(_DEFAULTS)
+    print(f"Default config: {merged}")
+    print(f"Loaded config: {tree}")
     try:
         merge_defaults(merged, dict(tree))
+        print(f"Merged config: {merged}")
     except TomlConfigError as exc:
         raise ConfigError(str(exc)) from exc
     return TranscribeConfig(
