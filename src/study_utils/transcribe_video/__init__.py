@@ -378,6 +378,7 @@ def load_config(
             f"Failed to parse config {config_path}: {exc}"
         ) from exc
 
+    print(f"TOML data: {toml_data}")
     print(f"Loaded config from {config_path}")
 
     return _build_config(toml_data)
