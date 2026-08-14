@@ -135,6 +135,7 @@ def _get_config(env: Optional[Dict[str, str]] = None) -> TranscribeConfig:
     global _TRANSCRIBE_CONFIG  # noqa: PLW0603
     if _TRANSCRIBE_CONFIG is None:
         _TRANSCRIBE_CONFIG = load_config(env=env)
+        print(f"_get_config: Loaded config: {_TRANSCRIBE_CONFIG}")
     return _TRANSCRIBE_CONFIG
 
 
@@ -270,11 +271,11 @@ def _build_logging(section: Mapping[str, Any]) -> LoggingConfig:
 
 def _build_config(tree: Mapping[str, Any]) -> TranscribeConfig:
     merged = deepcopy(_DEFAULTS)
-    print(f"Default config: {merged}")
-    print(f"Loaded config: {tree}")
+    print(f"_build_config: Default config: {merged}")
+    print(f"_build_config: Loaded config: {tree}")
     try:
         merge_defaults(merged, dict(tree))
-        print(f"Merged config: {merged}")
+        print(f"_build_config: Merged config: {merged}")
     except TomlConfigError as exc:
         raise ConfigError(str(exc)) from exc
     return TranscribeConfig(
@@ -351,7 +352,7 @@ def load_config(
         raise ConfigError("tomllib is required (Python 3.11+).")
 
     config_path = resolve_config_path(explicit_path, env)
-    print(f"Using config path: {config_path}")
+    print(f"load_config: Using config path: {config_path}")
 
     if not config_path.exists():
         default_config = _build_config(default_tree())
@@ -362,6 +363,7 @@ def load_config(
         with config_path.open("rb") as fh:
             raw = fh.read()
             text = raw.decode("utf-8")
+            print("load_config: Raw TOML: {text}")
         # Handle bare 'null' literals for Python 3.12+ tomllib.
     except Exception as exc:
         raise ConfigError(
@@ -373,13 +375,13 @@ def load_config(
 
         clean_text = _re.sub(r"(\w+)\s*=\s*null\b", r'\1=""', text)
         toml_data = tomllib.loads(clean_text)
+        print(f"load_config: Clean TOML data: {toml_data}")
     except Exception as exc:
         raise ConfigError(
             f"Failed to parse config {config_path}: {exc}"
         ) from exc
 
-    print(f"TOML data: {toml_data}")
-    print(f"Loaded config from {config_path}")
+    print(f"load_config: Loaded config from {config_path}")
 
     return _build_config(toml_data)
 
