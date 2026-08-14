@@ -313,7 +313,9 @@ def test_handle_list_mode_smart(
     monkeypatch.setattr(
         tv,
         "build_name_mapping",
-        lambda files, root, use_ai, client: {files[0]: "Name"},
+        lambda files, root, use_ai, client, title_model="gpt-4o-mini": {
+            files[0]: "Name"
+        },
     )
     monkeypatch.setattr(tv, "cache_get_final", lambda entry: None)
 
@@ -432,7 +434,9 @@ def test_build_mapping_base(
     monkeypatch.setattr(
         tv,
         "build_name_mapping",
-        lambda files, root, use_ai, client: {files[0]: "Missing"},
+        lambda files, root, use_ai, client, title_model="gpt-4o-mini": {
+            files[0]: "Missing"
+        },
     )
     mapping2 = tv._build_mapping_base(args, files, tmp_path, object(), {})
     assert mapping2

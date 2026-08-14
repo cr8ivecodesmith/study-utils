@@ -441,6 +441,7 @@ def _handle_config_path(args: Any) -> int:
     )
     try:
         cfg_path = resolve_config_path(explicit_path=expl)
+        print(cfg_path)
         return 0
     except Exception as exc:
         stderr = getattr(sys, "stderr", None) or sys.stderr
@@ -757,7 +758,10 @@ def heuristic_smart_name(video_path: Path, root: Path) -> str:
 
 
 def ai_smart_name(
-    client: OpenAI, video_path: Path, root: Path
+    client: OpenAI,
+    video_path: Path,
+    root: Path,
+    title_model: str = "gpt-4o-mini",
 ) -> Optional[str]:
     """Attempt to generate a concise descriptive name using OpenAI.
 
@@ -776,7 +780,7 @@ def ai_smart_name(
     try:
         # Prefer a lightweight model if available
         resp = client.chat.completions.create(
-            model=os.getenv("OPENAI_TITLE_MODEL", "gpt-4o-mini"),
+            model=title_model,
             messages=[
                 {
                     "role": "system",
@@ -801,6 +805,7 @@ def build_name_mapping(
     root: Path,
     use_ai: bool,
     client: Optional[OpenAI],
+    title_model: str = "gpt-4o-mini",
 ) -> Dict[Path, str]:
     """Return mapping of video path -> smart base name (no extension).
 
@@ -811,7 +816,7 @@ def build_name_mapping(
     for p in files:
         base = heuristic_smart_name(p, root)
         if use_ai and client is not None:
-            ai_name = ai_smart_name(client, p, root)
+            ai_name = ai_smart_name(client, p, root, title_model)
             if ai_name:
                 base = ai_name
         # prevent empty
@@ -1025,8 +1030,9 @@ def main():
         ),
     )
     parsed_prefix = parse_prefix_parts(args.prefix)
+    title_model_val = cfg.ai.title_model if cfg else "gpt-4o-mini"
     names_entries = _prepare_names_for_run(
-        args, video_files, target_path, client, parsed_prefix
+        args, video_files, target_path, client, parsed_prefix, title_model_val
     )
 
     _transcribe_videos(
@@ -1153,7 +1159,13 @@ def _handle_list_mode(args, video_files: List[Path], target_path: Path) -> None:
         )
         root, cache_path = _resolve_names_paths(args, target_path)
         existing = _load_existing_names(cache_path)
-        mapping = _build_mapping_base(args, video_files, root, client, existing)
+        cfg_for_list = _TRANSCRIBE_CONFIG
+        title_model_val = (
+            cfg_for_list.ai.title_model if cfg_for_list else "gpt-4o-mini"
+        )
+        mapping = _build_mapping_base(
+            args, video_files, root, client, existing, title_model_val
+        )
         combined = _combine_name_entries(
             video_files, existing, mapping, parsed_prefix, root
         )
@@ -1203,12 +1215,15 @@ def _prepare_names_for_run(
     target_path: Path,
     client,
     parsed_prefix,
+    title_model: str = "gpt-4o-mini",
 ) -> Dict[Path, Any]:
     if not args.smart_names:
         return {}
     root, cache_path = _resolve_names_paths(args, target_path)
     existing = _load_existing_names(cache_path)
-    mapping = _build_mapping_base(args, video_files, root, client, existing)
+    mapping = _build_mapping_base(
+        args, video_files, root, client, existing, title_model
+    )
     entries = _combine_name_entries(
         video_files, existing, mapping, parsed_prefix, root
     )
@@ -1282,18 +1297,21 @@ def _build_mapping_base(
     root: Path,
     client,
     existing: Dict[Path, Any],
+    title_model: str = "gpt-4o-mini",
 ) -> Dict[Path, str]:
     if not args.smart_names:
         return {}
     effective_client = client if args.use_ai else None
     if args.refresh_names:
         return build_name_mapping(
-            video_files, root, args.use_ai, effective_client
+            video_files, root, args.use_ai, effective_client, title_model
         )
     missing = [path for path in video_files if path not in existing]
     if not missing:
         return {}
-    return build_name_mapping(missing, root, args.use_ai, effective_client)
+    return build_name_mapping(
+        missing, root, args.use_ai, effective_client, title_model
+    )
 
 
 def _combine_name_entries(
