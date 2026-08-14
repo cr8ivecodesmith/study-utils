@@ -332,7 +332,7 @@ def resolve_config_path(
     else:
         from pathlib import Path as _PathType
 
-        config_dir = _PathType.home() / ".study_utils" / "config"
+        config_dir = _PathType.home() / ".study-utils-data" / "config"
         base = config_dir / "transcribe.toml"
 
     return base.expanduser().resolve()
@@ -364,7 +364,6 @@ def load_config(
             raw = fh.read()
             text = raw.decode("utf-8")
             print(f"load_config: Raw TOML: {text}")
-            breakpoint()
         # Handle bare 'null' literals for Python 3.12+ tomllib.
     except Exception as exc:
         raise ConfigError(
