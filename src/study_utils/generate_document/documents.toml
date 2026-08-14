@@ -1,3 +1,15 @@
+[llm]
+# Prefer LOCAL_LLM_API_KEY over OPENAI_API_KEY.
+use_local = true
+# Base URL for the local LLM API (passed to OpenAI SDK as base_url=...).
+api_base = "http://localhost:8080/v1"
+# Provider hint — "local" maps to key_source = "local".
+provider = "local"
+# Sampling temperature (0.0-2.0).
+temperature = 0.2
+# Maximum tokens for non-GPT-5 models.
+max_tokens = 4096
+
 [keywords]
 model = "gpt-4o-mini"
 description = "Extract keywords/topics from reference files with brief descriptions, grouped by file."

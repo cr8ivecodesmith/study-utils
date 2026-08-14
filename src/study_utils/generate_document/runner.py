@@ -10,11 +10,6 @@ from study_utils.core import iter_text_files, load_client, read_text_file
 
 from .config import load_documents_config
 
-_DEFAULT_LOCAL_LLM = {
-    "USE_LOCAL": True,
-    "API_BASE": "http://localhost:8080/v1",
-}
-
 
 def build_reference_block(files: Sequence[Tuple[Path, str]]) -> str:
     """Build a single string that contains all reference files and contents."""
@@ -80,9 +75,11 @@ def generate_document(
         (path, read_text_file(path)) for path in discovered
     ]
 
+    llm_cfg = cfg_all.llm
+
     client = load_client(
-        local=_DEFAULT_LOCAL_LLM["USE_LOCAL"],
-        api_base=_DEFAULT_LOCAL_LLM["API_BASE"],
+        local=llm_cfg.use_local,
+        api_base=llm_cfg.api_base,
     )
     doc_cfg = cfg_all[doc_type]
     messages = build_messages(doc_cfg, ref_pairs)
@@ -90,17 +87,23 @@ def generate_document(
         "OPENAI_TITLE_MODEL",
         "gpt-4o-mini",
     )
+    temperature = llm_cfg.temperature
+
+    if "gpt-5" in model:
+        params_temperature = 1.0
+        max_tokens_kw = "max_completion_tokens"
+        max_tokens_val = 8192
+    else:
+        params_temperature = temperature
+        max_tokens_kw = "max_tokens"
+        max_tokens_val = llm_cfg.max_tokens
+
     params = {
         "model": model,
         "messages": messages,
-        "temperature": 0.2,
+        "temperature": params_temperature,
+        max_tokens_kw: max_tokens_val,
     }
-
-    if "gpt-5" in model:
-        params["temperature"] = 1.0
-        params["max_completion_tokens"] = 8192
-    else:
-        params["max_tokens"] = 4096
 
     resp = client.chat.completions.create(**params)
     content = (resp.choices[0].message.content or "").strip()

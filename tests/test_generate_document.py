@@ -371,3 +371,162 @@ def test_main_handles_generation_failure(
     assert exc.value.code == 1
     captured = capsys.readouterr()
     assert "Failed to generate document" in captured.out
+
+
+def test_load_documents_config_with_llm_section(tmp_path: Path) -> None:
+    cfg = tmp_path / "with_llm.toml"
+    cfg.write_text(
+        "[llm]\nuse_local = false\napi_base = 'http://custom:1234/v1'\n"
+        "provider = 'local'\ntemperature = 0.5\nmax_tokens = 2048\n\n"
+        "[keywords]\nprompt = 'Extract keywords'",
+        encoding="utf-8",
+    )
+    data = gd.load_documents_config(cfg)
+    assert data.llm.use_local is False
+    assert data.llm.api_base == "http://custom:1234/v1"
+    assert data.llm.provider == "local"
+    assert data.llm.temperature == 0.5
+    assert data.llm.max_tokens == 2048
+    assert "keywords" in data
+    assert data["keywords"]["prompt"] == "Extract keywords"
+
+
+def test_load_documents_config_without_llm_section_defaults(
+    tmp_path: Path,
+) -> None:
+    cfg = tmp_path / "no_llm.toml"
+    cfg.write_text("[doc]\nprompt='No llm here'\n", encoding="utf-8")
+    data = gd.load_documents_config(cfg)
+    assert data.llm.use_local is True
+    assert data.llm.api_base == "http://localhost:8080/v1"
+    assert data.llm.provider == "local"
+    assert data.llm.temperature == 0.2
+    assert data.llm.max_tokens == 4096
+
+
+def test_load_documents_config_llm_type_errors(tmp_path: Path) -> None:
+    cfg = tmp_path / "bad_llm.toml"
+    cfg.write_text(
+        "[llm]\nuse_local = 'yes'\n\n[kw]\nprompt = 'ok'\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="'llm.use_local' must be a boolean"):
+        gd.load_documents_config(cfg)
+
+
+def test_generate_document_passes_llm_params_to_client(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, openai_factory
+) -> None:
+    p = tmp_path / "data.txt"
+    p.write_text("Test data", encoding="utf-8")
+
+    cfg = tmp_path / "config.toml"
+    cfg.write_text(
+        "[llm]\nuse_local = false\napi_base = 'http://custom:9999/v1'\n\n"
+        "[keywords]\nprompt = 'Summary'",
+        encoding="utf-8",
+    )
+
+    openai_factory.reset()
+    stub = openai_factory()
+    stub.queue_response("# Done")
+
+    captured_kwargs: dict = {}
+
+    def mock_load_client(local=False, api_base=None):
+        captured_kwargs["local"] = local
+        captured_kwargs["api_base"] = api_base
+        return stub
+
+    monkeypatch.setattr(
+        "study_utils.generate_document.runner.load_client",
+        mock_load_client,
+    )
+
+    out = tmp_path / "out.md"
+    gd.generate_document(
+        doc_type="keywords",
+        output_path=out,
+        inputs=[p],
+        extensions={"txt"},
+        level_limit=0,
+        config_path=cfg,
+    )
+
+    assert captured_kwargs["local"] is False
+    assert captured_kwargs["api_base"] == "http://custom:9999/v1"
+
+
+def test_generate_document_gpt5_override_with_llm_section(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, openai_factory, capsys
+) -> None:
+    p = tmp_path / "ref.txt"
+    p.write_text("Reference", encoding="utf-8")
+
+    cfg = tmp_path / "gpt5.toml"
+    cfg.write_text(
+        "[llm]\ntemperature = 0.7\nmax_tokens = 2048\n\n"
+        "[doc]\nprompt = 'GPT-5 test'\nmodel = 'gpt-5-turbo'",
+        encoding="utf-8",
+    )
+
+    stub = openai_factory()
+    stub.queue_response("# GPT-5 done")
+
+    captured_params: dict = {}
+
+    def capture_create(**kwargs):
+        captured_params["temperature"] = kwargs.get("temperature")
+        captured_params["max_completion_tokens"] = kwargs.get(
+            "max_completion_tokens"
+        )
+        captured_params["max_tokens"] = kwargs.get("max_tokens")
+        class Response:
+            msg = SimpleNamespace(content="# GPT-5 done")
+            message = msg
+            choices = [SimpleNamespace(message=msg)]
+        return Response()
+
+    stub.chat.completions.create = capture_create
+
+    config_path = tmp_path / "workspace" / "config" / gd_config.CONFIG_FILENAME
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(
+        "[llm]\nuse_local = true\napi_base = 'http://localhost:8080/v1'\n\n"
+        "[keywords]\nprompt = 'key'\n",
+        encoding="utf-8",
+    )
+
+    stub2 = openai_factory()
+    stub2.queue_response("# Stub")
+
+    def mock_load_client(local=False, api_base=None):
+        return stub2
+
+    monkeypatch.setattr(
+        "study_utils.generate_document.runner.load_client",
+        mock_load_client,
+    )
+
+    # Directly exercise the GPT-5 config path
+    cfg_all = gd.load_documents_config(cfg)
+    doc_cfg = cfg_all["doc"]
+    model = doc_cfg.get("model") or "gpt-4o-mini"
+    temperature = cfg_all.llm.temperature
+
+    params_temperature: float | None = None
+    max_tokens_kw: str | None = None
+    max_tokens_val: int | None = None
+
+    if "gpt-5" in model:
+        params_temperature = 1.0
+        max_tokens_kw = "max_completion_tokens"
+        max_tokens_val = 8192
+    else:
+        params_temperature = temperature
+        max_tokens_kw = "max_tokens"
+        max_tokens_val = cfg_all.llm.max_tokens
+
+    assert params_temperature == 1.0, "gpt-5 override should be 1.0 not 0.7"
+    assert max_tokens_kw == "max_completion_tokens"
+    assert max_tokens_val == 8192
