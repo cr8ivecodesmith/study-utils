@@ -363,7 +363,7 @@ def load_config(
         with config_path.open("rb") as fh:
             raw = fh.read()
             text = raw.decode("utf-8")
-            print("load_config: Raw TOML: {text}")
+            print(f"load_config: Raw TOML: {text}")
         # Handle bare 'null' literals for Python 3.12+ tomllib.
     except Exception as exc:
         raise ConfigError(
