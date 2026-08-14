@@ -122,6 +122,7 @@ class DocumentsConfig:
     def items(self):
         return self.docs.items()
 
+
 def _load_docs_section(raw: Dict[str, Any]) -> Dict[str, Dict[str, str]]:
     """Parse per-document-type entries from the raw TOML dictionary.
 

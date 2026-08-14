@@ -481,10 +481,12 @@ def test_generate_document_gpt5_override_with_llm_section(
             "max_completion_tokens"
         )
         captured_params["max_tokens"] = kwargs.get("max_tokens")
+
         class Response:
             msg = SimpleNamespace(content="# GPT-5 done")
             message = msg
             choices = [SimpleNamespace(message=msg)]
+
         return Response()
 
     stub.chat.completions.create = capture_create
