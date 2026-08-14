@@ -773,6 +773,7 @@ def ai_smart_name(
         "for a course video based only on its directory path and file name.\n"
         "Use important folder names (e.g., module/week/section) and the file "
         "stem.\n"
+        "Expand words that may have apostrophes (e.g., don't -> do not).\n"
         "Avoid quotes; avoid slashes; return only the title.\n\n"
         f"Root: {root}\n"
         f"Path: {video_path}\n"
@@ -791,7 +792,6 @@ def ai_smart_name(
             "temperature": 0.2,
             "max_tokens": 64,
         }
-        print(f"ai_smart_name: Chat completion params: {params}")
         resp = client.chat.completions.create(**params)
         choice = resp.choices[0].message.content.strip()
         # Basic sanitization
