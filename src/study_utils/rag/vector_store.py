@@ -421,7 +421,9 @@ def _atomic_write_json(
     path: Path, payload: Mapping[str, Any] | list[Any]
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    handle = tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8")
+    handle = tempfile.NamedTemporaryFile(
+        "w", delete=False, encoding="utf-8", dir=str(path.parent)
+    )
     try:
         json.dump(payload, handle, indent=2, sort_keys=True)
         handle.flush()
