@@ -85,12 +85,12 @@ features share the same local LLM connection model without duplicating magic con
 
 ## Definition of Done
 
-- [ ] Behavior verified — all scenarios in "Behavior (BDD-ish)" hold.
-- [ ] `documents.toml` template updated with `[llm]` section.
-- [ ] `config.py` parses `[llm]` into a dataclass; `load_documents_config()` returns enriched config.
-- [ ] `runner.py` consumes config-derived values and passes all connection params to `load_client()`.
-- [ ] Tests added or updated (unit tests for config parsing and runner behaviour with/without `[llm]`).
-- [ ] Existing `documents.toml` files validated against the new schema (backwards-compatible).
+- [x] Behavior verified — all scenarios in "Behavior (BDD-ish)" hold.
+- [x] `documents.toml` template updated with `[llm]` section.
+- [x] `config.py` parses `[llm]` into a dataclass; `load_documents_config()` returns enriched config.
+- [x] `runner.py` consumes config-derived values and passes all connection params to `load_client()`.
+- [x] Tests added or updated (unit tests for config parsing and runner behaviour with/without `[llm]`).
+- [x] Existing `documents.toml` files validated against the new schema (backwards-compatible).
 
 ## Ownership
 

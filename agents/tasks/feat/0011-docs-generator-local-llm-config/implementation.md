@@ -111,29 +111,29 @@ This task expands the documents generator config to declare these same connectio
 
 ### Stepwise implementation checklist
 
-- [ ] **Add LLMConfig dataclass** to config.py — with `use_local`, `api_base`, `provider`, `temperature`, `max_tokens`; all typed; frozen=True; default values matching current hard-coded state.
+- [x] **Add LLMConfig dataclass** to config.py — with `use_local`, `api_base`, `provider`, `temperature`, `max_tokens`; all typed; frozen=True; default values matching current hard-coded state. (`config.py:67-75`)
 
-- [ ] **Add _DEFAULT_LLM_CONFIG constant** — module-level dataclass instance for fallback when `[llm]` is missing from TOML or not present during tests.
+- [x] **Add _DEFAULT_LLM_CONFIG constant** — module-level dataclass instance for fallback when `[llm]` is missing from TOML or not present during tests. (`config.py:78`)
 
-- [ ] **Add _build_llm() builder function** — reads raw TOML section, coerces types, validates ranges (temperature 0.0–2.0), returns LLMConfig. Uses same helpers as RAG config._require_bool, _require_float_range, etc.
+- [x] **Add _build_llm() builder function** — reads raw TOML section, coerces types, validates ranges (temperature 0.0–2.0), returns LLMConfig. Uses same helpers as RAG config. (`config.py:81-100`)
 
-- [ ] **Update load_documents_config()** — extract `[llm]` section before the per-doc-type loop; call `_build_llm(llm_section)` with fallback to `_DEFAULT_LLM_CONFIG`; return wrapped dataclass (or TypedDict) with both `llm` and `docs` fields.
+- [x] **Update load_documents_config()** — extract `[llm]` section before the per-doc-type loop; call `_build_llm(llm_section)` with fallback to `_DEFAULT_LLM_CONFIG`; return wrapped dataclass (or TypedDict) with both `llm` and `docs` fields. (`config.py:151-182`)
 
-- [ ] **Update runner.py imports** — remove `_DEFAULT_LOCAL_LLM` dict, import `DocumentsConfig` (or the return type from config), import `_build_llm` if needed for tests.
+- [x] **Update runner.py imports** — removed `_DEFAULT_LOCAL_LLM` dict, imported `load_documents_config` from config, no extra `_build_llm` import needed by runners since it's used during load. (`runner.py:11`)
 
-- [ ] **Wire LLM params into load_client()** — in generate_document(), pass `llm_cfg.use_local` and `llm_cfg.api_base` to `load_client()` instead of hardcoded dict lookups.
+- [x] **Wire LLM params into load_client()** — in generate_document(), pass `llm_cfg.use_local` and `llm_cfg.api_base` to `load_client()` instead of hardcoded dict lookups. (`runner.py:80-83`)
 
-- [ ] **Wire temperature & max_tokens** — use `llm_cfg.temperature` as base; apply gpt-5 override (`1.0`, `max_completion_tokens=8192`); use `llm_cfg.max_tokens` for non-gpt-5 fallback instead of hard-coded 4096.
+- [x] **Wire temperature & max_tokens** — use `llm_cfg.temperature` as base; apply gpt-5 override (`1.0`, `max_completion_tokens=8192`); use `llm_cfg.max_tokens` for non-gpt-5 fallback instead of hard-coded 4096. (`runner.py:90-99`)
 
-- [ ] **Add [llm] section to documents.toml** — add five keys at top with optional comment annotations matching RAG's style.
+- [x] **Add [llm] section to documents.toml** — five keys at top with comment annotations matching RAG's style. (`documents.toml:1-11`)
 
-- [ ] **Write tests** — 4–5 targeted unit tests in existing test_generate_document.py:
-  - Config parsing with `[llm]` present
-  - Config parsing without `[llm]` (backwards compat)
-  - Type validation errors raise descriptive errors
-  - Runner passes correct params to `load_client()`
+- [x] **Write tests** — 5 targeted unit tests in existing test_generate_document.py:
+  - [x] Config parsing with `[llm]` present (`test_load_documents_config_with_llm_section`, line 376)
+  - [x] Config parsing without `[llm]` (backwards compat) (`test_load_documents_config_without_llm_section_defaults`, line 394)
+  - [x] Type validation errors raise descriptive errors (`test_load_documents_config_llm_type_errors`, line 407)
+  - [x] Runner passes correct params to `load_client()` (`test_generate_document_passes_llm_params_to_client`, line 417)
 
-- [ ] **Verify** — run full test suite; expect all existing 13 generate_document tests to pass plus new ones.
+- [x] **Verify** — run full test suite: all 24 generate_document tests pass (19 existing + 5 new).
 
 ## Test Plan
 
@@ -181,3 +181,10 @@ The `[llm]` section is entirely additive. Existing files not containing `[llm]` 
 - Chose dataclass wrapper approach (Option A) matching RAG's RagConfig pattern.
 - Defined 4–5 new unit tests, all within existing test_generate_document.py.
 - Identified single key risk: [llm] section must be extracted before per-doc-type loop so it isn't skipped by the prompt check at lines 89-91 of config.py.
+
+### 2026-08-14 review
+**Summary** — Code review and spec/impl checkoff. Result: complete.
+**Notes**
+- All 24 tests pass (19 existing + 5 new).
+- All 6 Definition of Done items in spec.md checked.
+- All 11 steps in implementation checklist verified against code with line references.
