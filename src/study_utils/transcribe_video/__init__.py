@@ -872,7 +872,7 @@ def transcribe_audio_file(client: OpenAI, audio_path: Path) -> str:
 
     _config_used = {
         "model": os.getenv("TRANSCRIPTION_MODEL", "whisper-3"),
-        "client": dict(client),
+        "client": client.__dict__,
     }
     print(f"Transcribing {audio_path.name} with {_config_used}")
 
