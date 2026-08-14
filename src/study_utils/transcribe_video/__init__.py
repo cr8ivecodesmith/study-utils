@@ -1024,6 +1024,11 @@ def main():
         raise SystemExit(1)
 
     out_dir = _prepare_output_dir(args.output_dir)
+    _client_parameter_debug = {
+        "local": cfg.ai.use_local if cfg else _TRANSCRIBE_LLM["USE_LOCAL"],
+        "api_base": cfg.ai.api_base if cfg else _TRANSCRIBE_LLM["API_BASE"],
+    }
+    print(f"Using AI client with {_client_parameter_debug}")
     client = load_client(
         local=cfg.ai.use_local if cfg else _TRANSCRIBE_LLM["USE_LOCAL"],
         api_base=(
