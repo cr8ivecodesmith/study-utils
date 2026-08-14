@@ -779,18 +779,20 @@ def ai_smart_name(
     )
     try:
         # Prefer a lightweight model if available
-        resp = client.chat.completions.create(
-            model=title_model,
-            messages=[
+        params = {
+            "model": title_model,
+            "messages": [
                 {
                     "role": "system",
                     "content": "You create concise, file-name-safe titles.",
                 },
                 {"role": "user", "content": prompt},
             ],
-            temperature=0.2,
-            max_tokens=64,
-        )
+            "temperature": 0.2,
+            "max_tokens": 64,
+        }
+        print(f"ai_smart_name: Chat completion params: {params}")
+        resp = client.chat.completions.create(**params)
         choice = resp.choices[0].message.content.strip()
         # Basic sanitization
         choice = re.sub(r"[\r\n]+", " ", choice)
