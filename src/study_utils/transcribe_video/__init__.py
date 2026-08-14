@@ -352,18 +352,19 @@ def load_config(
         raise ConfigError("tomllib is required (Python 3.11+).")
 
     config_path = resolve_config_path(explicit_path, env)
-    print(f"load_config: Using config path: {config_path}")
 
     if not config_path.exists():
         default_config = _build_config(default_tree())
-        print("No config file found. Using defaults.")
+        print("load_config: No config file found. Using defaults.")
         return default_config
 
     try:
+        print(f"load_config: Using config path: {config_path}")
         with config_path.open("rb") as fh:
             raw = fh.read()
             text = raw.decode("utf-8")
             print(f"load_config: Raw TOML: {text}")
+            breakpoint()
         # Handle bare 'null' literals for Python 3.12+ tomllib.
     except Exception as exc:
         raise ConfigError(
