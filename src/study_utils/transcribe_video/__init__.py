@@ -870,6 +870,12 @@ def transcribe_audio_file(client: OpenAI, audio_path: Path) -> str:
     Returns plain text output from the transcription API.
     """
 
+    _config_used = {
+        "model": os.getenv("TRANSCRIPTION_MODEL", "whisper-3"),
+        "client": dict(client),
+    }
+    print(f"Transcribing {audio_path.name} with {_config_used}")
+
     response = client.audio.transcriptions.create(
         model=os.getenv("TRANSCRIPTION_MODEL", "whisper-3"),
         file=audio_path.open("rb"),
