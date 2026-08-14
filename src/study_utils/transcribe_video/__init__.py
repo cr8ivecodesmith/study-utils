@@ -135,7 +135,6 @@ def _get_config(env: Optional[Dict[str, str]] = None) -> TranscribeConfig:
     global _TRANSCRIBE_CONFIG  # noqa: PLW0603
     if _TRANSCRIBE_CONFIG is None:
         _TRANSCRIBE_CONFIG = load_config(env=env)
-        print(f"_get_config: Loaded config: {_TRANSCRIBE_CONFIG}")
     return _TRANSCRIBE_CONFIG
 
 
@@ -271,11 +270,8 @@ def _build_logging(section: Mapping[str, Any]) -> LoggingConfig:
 
 def _build_config(tree: Mapping[str, Any]) -> TranscribeConfig:
     merged = deepcopy(_DEFAULTS)
-    print(f"_build_config: Default config: {merged}")
-    print(f"_build_config: Loaded config: {tree}")
     try:
         merge_defaults(merged, dict(tree))
-        print(f"_build_config: Merged config: {merged}")
     except TomlConfigError as exc:
         raise ConfigError(str(exc)) from exc
     return TranscribeConfig(
@@ -355,15 +351,12 @@ def load_config(
 
     if not config_path.exists():
         default_config = _build_config(default_tree())
-        print("load_config: No config file found. Using defaults.")
         return default_config
 
     try:
-        print(f"load_config: Using config path: {config_path}")
         with config_path.open("rb") as fh:
             raw = fh.read()
             text = raw.decode("utf-8")
-            print(f"load_config: Raw TOML: {text}")
         # Handle bare 'null' literals for Python 3.12+ tomllib.
     except Exception as exc:
         raise ConfigError(
@@ -375,13 +368,10 @@ def load_config(
 
         clean_text = _re.sub(r"(\w+)\s*=\s*null\b", r'\1=""', text)
         toml_data = tomllib.loads(clean_text)
-        print(f"load_config: Clean TOML data: {toml_data}")
     except Exception as exc:
         raise ConfigError(
             f"Failed to parse config {config_path}: {exc}"
         ) from exc
-
-    print(f"load_config: Loaded config from {config_path}")
 
     return _build_config(toml_data)
 
@@ -411,7 +401,6 @@ def _handle_config_init(args: Any) -> int:
         print(f"Error: {exc}", file=stderr or None)
         return 2
 
-    print(f"Configuration written to {resolved_path}")
     return 0
 
 
@@ -452,7 +441,6 @@ def _handle_config_path(args: Any) -> int:
     )
     try:
         cfg_path = resolve_config_path(explicit_path=expl)
-        print(cfg_path)
         return 0
     except Exception as exc:
         stderr = getattr(sys, "stderr", None) or sys.stderr
@@ -880,13 +868,6 @@ def transcribe_audio_file(client: OpenAI, audio_path: Path) -> str:
 
     Returns plain text output from the transcription API.
     """
-
-    _config_used = {
-        "model": os.getenv("TRANSCRIPTION_MODEL", "whisper-3"),
-        "client": client.__dict__,
-    }
-    print(f"Transcribing {audio_path.name} with {_config_used}")
-
     response = client.audio.transcriptions.create(
         model=os.getenv("TRANSCRIPTION_MODEL", "whisper-3"),
         file=audio_path.open("rb"),
@@ -1035,12 +1016,6 @@ def main():
         raise SystemExit(1)
 
     out_dir = _prepare_output_dir(args.output_dir)
-    _client_parameter_debug = {
-        "cfg": cfg,
-        "local": cfg.ai.use_local if cfg else _TRANSCRIBE_LLM["USE_LOCAL"],
-        "api_base": cfg.ai.api_base if cfg else _TRANSCRIBE_LLM["API_BASE"],
-    }
-    print(f"Using AI client with {_client_parameter_debug}")
     client = load_client(
         local=cfg.ai.use_local if cfg else _TRANSCRIBE_LLM["USE_LOCAL"],
         api_base=(
