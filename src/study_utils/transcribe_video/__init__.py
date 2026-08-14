@@ -1019,8 +1019,12 @@ def main():
 
     out_dir = _prepare_output_dir(args.output_dir)
     client = load_client(
-        local=_TRANSCRIBE_LLM["USE_LOCAL"],
-        api_base=_TRANSCRIBE_LLM.get("API_BASE", "http://localhost:8080/v1"),
+        local=cfg.ai.use_local if cfg else _TRANSCRIBE_LLM["USE_LOCAL"],
+        api_base=(
+            cfg.ai.api_base
+            if cfg
+            else _TRANSCRIBE_LLM.get("API_BASE", "http://localhost:8080/v1")
+        ),
     )
     parsed_prefix = parse_prefix_parts(args.prefix)
     names_entries = _prepare_names_for_run(
@@ -1135,11 +1139,17 @@ def _handle_list_mode(args, video_files: List[Path], target_path: Path) -> None:
         return
     parsed_prefix = parse_prefix_parts(args.prefix)
     if args.smart_names:
+        list_cfg = _TRANSCRIBE_CONFIG
+        local_val = (
+            list_cfg.ai.use_local if list_cfg else _TRANSCRIBE_LLM["USE_LOCAL"]
+        )
+        api_base_val = (
+            list_cfg.ai.api_base
+            if list_cfg
+            else _TRANSCRIBE_LLM.get("API_BASE", "http://localhost:8080/v1")
+        )
         client = (
-            load_client(
-                local=_TRANSCRIBE_LLM["USE_LOCAL"],
-                api_base=_TRANSCRIBE_LLM["API_BASE"],
-            )
+            load_client(local=local_val, api_base=api_base_val)
             if args.use_ai
             else None
         )
