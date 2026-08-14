@@ -348,9 +348,12 @@ def load_config(
         raise ConfigError("tomllib is required (Python 3.11+).")
 
     config_path = resolve_config_path(explicit_path, env)
+    print(f"Using config path: {config_path}")
 
     if not config_path.exists():
-        return _build_config(default_tree())
+        default_config = _build_config(default_tree())
+        print("No config file found. Using defaults.")
+        return default_config
 
     try:
         with config_path.open("rb") as fh:
@@ -371,6 +374,8 @@ def load_config(
         raise ConfigError(
             f"Failed to parse config {config_path}: {exc}"
         ) from exc
+
+    print(f"Loaded config from {config_path}")
 
     return _build_config(toml_data)
 
@@ -1025,6 +1030,7 @@ def main():
 
     out_dir = _prepare_output_dir(args.output_dir)
     _client_parameter_debug = {
+        "cfg": cfg,
         "local": cfg.ai.use_local if cfg else _TRANSCRIBE_LLM["USE_LOCAL"],
         "api_base": cfg.ai.api_base if cfg else _TRANSCRIBE_LLM["API_BASE"],
     }
