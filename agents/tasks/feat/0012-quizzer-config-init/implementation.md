@@ -208,10 +208,31 @@ The spec defines a `config init` / `config validate` CLI command group for quizz
 ### Rollout
 - Fully additive: existing `quizzer.toml` files without `[ai]` get defaults on first read. No migration script needed.
 - Template registration means future template-aware tooling (e.g., `config init`) can discover and use it automatically.
-
 ## History
 
+### Implementation Complete — 2026-08-15
+
+**Summary** — Feature implemented and all tests passing (91 total, 18 new config tests).
+
+**Changes Applied:**
+1. ✅ Created `src/study_utils/quizzer/config.py` with `QuizzerAIConfig`, `_DEFAULTS`, `load_config()`, `validate_config()`
+2. ✅ Created `src/study_utils/quizzer/template.toml` packaged template resource  
+3. ✅ Registered `"quizzer"` template in `core/config_templates.py._TEMPLATES`
+4. ✅ Updated `quizzer/utils.py` `_find_config()` for workspace-aware resolution
+5. ✅ Modified `quizzer/_main.py` — replaced `_QUIZZER_LLM`, added `config init|validate|path` subcommands
+6. ✅ Modified `quizzer/manager/quiz.py` — wired config into `_ensure_ai_client()`, `ai_generate_mcqs_for_topic()`, `ai_extract_topics()`
+7. ✅ Created `src/study_utils/quizzer/template.py` for template text module
+8. ✅ Added 12+ unit tests in `tests/test_quizzer_config.py` covering all spec scenarios
+
+**Verification:**
+- All 91 quizzer tests pass (73 existing + 18 new)
+- `config.py`: 81% coverage
+- `_main.py`: 90% coverage  
+- `quiz.py`: 98% coverage
+- Fully backwards-compatible with existing hand-written config files lacking `[ai]` section
+
 ### Draft — 2026-08-15
+
 **Summary** — Implementation doc drafted after thorough codebase exploration and spec review.
 **Changes**
 - Confirmed five hardcoded values to externalize: model, api_base, use_local, temperature, max_tokens.

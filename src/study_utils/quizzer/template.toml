@@ -1,0 +1,14 @@
+# Quizzer configuration template.
+# Generated via `quizzer config init`.
+
+[ai]
+model = "gpt-4o-mini"
+api_base = "http://localhost:8080/v1"
+use_local = true
+provider = "local"
+temperature = 0.2
+max_tokens = 600
+
+# Storage settings — unchanged by this spec but read by config loader.
+[storage]
+out_dir = ".quizzer/<name>"

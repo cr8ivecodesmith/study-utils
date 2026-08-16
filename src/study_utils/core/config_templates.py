@@ -88,6 +88,12 @@ _TEMPLATES: dict[str, ConfigTemplate] = {
         ),
         package="study_utils.transcribe_video",
     ),
+    "quizzer": ConfigTemplate(
+        name="quizzer",
+        filename="template.toml",
+        description=("Configuration defaults for the quizzer workflow."),
+        package="study_utils.quizzer",
+    ),
 }
 
 

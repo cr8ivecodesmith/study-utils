@@ -1,4 +1,5 @@
 import argparse
+import os
 import random
 from pathlib import Path
 from typing import Optional, Sequence
@@ -19,11 +20,14 @@ from .utils import (
 
 from .manager.quiz import generate_questions, extract_topics
 from .session import run_quiz_session
-
-_QUIZZER_LLM = {
-    "USE_LOCAL": True,
-    "API_BASE": "http://localhost:8080/v1",
-}
+from .config import (
+    CONFIG_ENV,
+    CONFIG_FILENAME,
+    QuizzerConfigError,
+    load_config,
+    validate_config,
+    write_template,
+)
 
 
 def _out_dir_for(name: str, cfg: Optional[dict]) -> Path:
@@ -129,6 +133,47 @@ def _cmd_topics_list(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_config_init(args: argparse.Namespace) -> int:
+    path = Path(getattr(args, "path", None) or CONFIG_FILENAME).expanduser()
+    force = getattr(args, "force", False)
+
+    try:
+        write_template(path, overwrite=force)
+        print(f"Created config template at {path}")
+        return 0
+    except QuizzerConfigError as exc:
+        print(f"Error: {exc}")
+        return 1
+
+
+def _cmd_config_validate(args: argparse.Namespace) -> int:
+    config_path = getattr(args, "config", None)
+    try:
+        target = Path(config_path) if config_path else None
+        resolved = validate_config(path=target)
+        print(f"Config validated: {resolved}")
+        return 0
+    except QuizzerConfigError as exc:
+        print(f"Validation failed: {exc}")
+        return 1
+
+
+def _cmd_config_path(args: argparse.Namespace) -> int:
+    from .config import _resolve_config_path
+
+    config_path = getattr(args, "config", None)
+    resolved = _resolve_config_path(
+        config_path=Path(config_path) if config_path else None,
+        env={CONFIG_ENV: os.environ.get(CONFIG_ENV, "")},
+    )
+    if resolved:
+        print(resolved.resolve())
+        return 0
+    else:
+        print("No config file found.")
+        return 1
+
+
 def _cmd_not_implemented(label: str) -> int:
     print(f"{label} is not implemented yet. Stay tuned.")
     return 2
@@ -167,9 +212,10 @@ def _cmd_questions_generate(args: argparse.Namespace) -> int:
     client = None
     if load_client is not None:
         try:
+            cfg = load_config()
             client = load_client(
-                local=_QUIZZER_LLM["USE_LOCAL"],
-                api_base=_QUIZZER_LLM["API_BASE"],
+                local=cfg.ai.use_local,
+                api_base=cfg.ai.api_base,
             )
         except Exception:
             client = None
@@ -344,29 +390,112 @@ def build_arg_parser() -> argparse.ArgumentParser:
     sp_rep = sub.add_parser("report", help="Show session summary")
     sp_rep.add_argument("name")
     sp_rep.add_argument("--session")
+
+    # Config subcommand group
+    sp_config = sub.add_parser("config", help="Config management commands")
+    config_sub = sp_config.add_subparsers(dest="action", required=True)
+
+    sp_c_init = config_sub.add_parser(
+        "init", help="Create a quizzer.toml template"
+    )
+    sp_c_init.add_argument(
+        "--path",
+        default=None,
+        help="Output path (default: workspace/config/quizzer.toml)",
+    )
+    sp_c_init.add_argument(
+        "--force",
+        action="store_true",
+        default=False,
+        help="Overwrite existing file",
+    )
+
+    sp_c_validate = config_sub.add_parser(
+        "validate", help="Validate current config file"
+    )
+    sp_c_validate.add_argument(
+        "--config",
+        default=None,
+        help="Explicit path to validate",
+    )
+
+    sp_c_path = config_sub.add_parser(
+        "path", help="Print resolved config file path"
+    )
+    sp_c_path.add_argument(
+        "--config",
+        default=None,
+        help="Explicit path to resolve",
+    )
+
     return p
 
 
 def main(argv: Optional[Sequence[str]] = None) -> None:
+    """Parse CLI arguments and dispatch to the appropriate command handler."""
     parser = build_arg_parser()
     args = parser.parse_args(argv)
-    if args.command == "init":
-        code = _cmd_init(args)
-    elif args.command == "topics" and args.action == "generate":
-        code = _cmd_topics_generate(args)
-    elif args.command == "topics" and args.action == "list":
-        code = _cmd_topics_list(args)
-    elif args.command == "questions" and args.action == "generate":
-        code = _cmd_questions_generate(args)
-    elif args.command == "questions" and args.action == "list":
-        code = _cmd_questions_list(args)
-    elif args.command == "start":
-        code = _cmd_start(args)
-    elif args.command == "review":
-        code = _cmd_not_implemented("review")
-    elif args.command == "report":
-        code = _cmd_not_implemented("report")
-    else:  # pragma: no cover - fallback guard
-        parser.print_help()
-        code = 2
+    code = _dispatch_command(args, parser)
     raise SystemExit(code)
+
+
+def _dispatch_command(
+    args: argparse.Namespace,
+    parser: argparse.ArgumentParser,
+) -> int:
+    """Route parsed args to the correct command handler."""
+
+    if args.command == "config":
+        return _handle_config(args)
+
+    if args.command == "init":
+        return _cmd_init(args)
+
+    is_topics = args.command == "topics" and args.action in ("generate", "list")
+    if is_topics:
+        handler = (
+            _cmd_topics_generate
+            if args.action == "generate"
+            else _cmd_topics_list
+        )
+        return handler(args)
+
+    questions_cmd = args.command == "questions" and args.action in (
+        "generate",
+        "list",
+    )
+    if questions_cmd:
+        handler = (
+            _cmd_questions_generate
+            if args.action == "generate"
+            else _cmd_questions_list
+        )
+        return handler(args)
+
+    if args.command == "start":
+        return _cmd_start(args)
+    if args.command == "review":
+        return _cmd_not_implemented("review")
+    if args.command == "report":
+        return _cmd_not_implemented("report")
+
+    parser.print_help()
+    return 2
+
+
+def _handle_config(args: argparse.Namespace) -> int:
+    """Handle config subcommands (init, validate, path)."""
+    action = args.action or "init"
+
+    handlers = {
+        "init": _cmd_config_init,
+        "validate": _cmd_config_validate,
+        "path": _cmd_config_path,
+    }
+
+    handler = handlers.get(action)
+    if handler is None:
+        # Print config subparser help for unknown actions
+        print(f"Unknown config action: {action}")
+        return 2
+    return handler(args)

@@ -1,5 +1,6 @@
 import re
 import json
+import os
 
 from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
@@ -13,14 +14,29 @@ _slug_re = re.compile(r"[^a-z0-9]+")
 
 
 def _find_config(explicit: Optional[str]) -> Optional[Path]:
+    """Resolve the quizzer config path with workspace-aware resolution.
+
+    Precedence (highest to lowest):
+    1. Explicit CLI argument
+    2. CWD quizzer.toml (for backwards compat)
+    3. Workspace config directory
+    """
     if explicit:
         p = Path(explicit).expanduser().resolve()
         return p if p.exists() else None
-    p = Path("quizzer.toml").resolve()
-    if p.exists():
-        return p
-    # Fallback to bundled defaults (not provided yet)
-    return None
+
+    # Check CWD first for backwards compatibility
+    cwd_config = Path("quizzer.toml").resolve()
+    if cwd_config.exists():
+        return cwd_config
+
+    # Fallback to workspace config directory via config.py
+    from .config import _resolve_config_path, CONFIG_ENV
+
+    return _resolve_config_path(
+        config_path=None,
+        env={CONFIG_ENV: os.environ.get(CONFIG_ENV, "")},
+    )
 
 
 def _get_quiz_section(cfg: dict, name: str) -> dict:

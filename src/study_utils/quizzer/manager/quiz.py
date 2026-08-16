@@ -8,6 +8,7 @@ from typing import Optional, List, Sequence, Tuple, Iterable, Dict, Any
 
 from ...core import load_client
 from ..utils import _slugify
+from ..config import load_config, QuizzerConfigError
 
 
 def _topic_source_paths(topic: Dict[str, object]) -> List[Path]:
@@ -253,15 +254,40 @@ def validate_mcq(q: Dict[str, object]) -> None:
         raise ValueError("answer must match one of the choice keys")
 
 
+def _resolve_ai_config():
+    """Resolve AI config from quizzer config, with lazy load."""
+    try:
+        cfg = load_config()
+        return cfg.ai
+    except QuizzerConfigError:
+        from ...quizzer.config import DEFAULTS
+
+        return type(
+            "_FallbackAI",
+            (),
+            {
+                "model": DEFAULTS.ai.get("model", "gpt-4o-mini"),
+                "api_base": DEFAULTS.ai.get(
+                    "api_base", "http://localhost:8080/v1"
+                ),
+                "use_local": DEFAULTS.ai.get("use_local", True),
+                "provider": DEFAULTS.ai.get("provider", "local"),
+                "temperature": DEFAULTS.ai.get("temperature", 0.2),
+                "max_tokens": DEFAULTS.ai.get("max_tokens", 600),
+            },
+        )
+
+
 def _ensure_ai_client(client: Optional[object]) -> Optional[object]:
     if client is not None:
         return client
     if load_client is None:
         return None
     try:
+        ai = _resolve_ai_config()
         return load_client(
-            local=True,
-            api_base="http://localhost:8080/v1",
+            local=ai.use_local,
+            api_base=ai.api_base,
         )
     except Exception:
         return None
@@ -434,6 +460,16 @@ def ai_generate_mcqs_for_topic(
     if resolved_client is None:
         return []
 
+    # Use config defaults for model and temperature if at default values
+    use_config_defaults = model == "gpt-4o-mini" and temperature == 0.2
+    if use_config_defaults:
+        try:
+            ai_conf = load_config().ai
+            model = model or ai_conf.model
+            temperature = temperature or ai_conf.temperature
+        except QuizzerConfigError:
+            pass
+
     topic_id = str(topic.get("id") or _slugify(str(topic.get("name", "topic"))))
     topic_name = str(topic.get("name") or topic_id)
     sys_prompt, user_prompt = _build_mcq_prompts(topic_name, n, prompt, context)
@@ -536,6 +572,16 @@ def ai_extract_topics(
     resolved_client = _ensure_ai_client(client)
     if resolved_client is None:
         return []
+
+    # Use config defaults for model and temperature if at default values
+    use_config_defaults = model == "gpt-4o-mini" and temperature == 0.2
+    if use_config_defaults:
+        try:
+            ai_conf = load_config().ai
+            model = model or ai_conf.model
+            temperature = temperature or ai_conf.temperature
+        except QuizzerConfigError:
+            pass
 
     summarized = _summarize_topic_sources(
         sources,
