@@ -4,6 +4,7 @@ Covers load_config(), validate_config(), template writing, find_config(),
 and backward compat with missing [ai] section.
 """
 
+import json
 import os
 
 import pytest
@@ -321,3 +322,93 @@ class TestConfigResolver:
             env={CONFIG_ENV: str(env_file)},
         )
         assert result == env_file
+
+
+class TestMaxTokensResolution:
+    """Test max_tokens resolution in ai_generate_mcqs_for_topic()."""
+
+    def test_ai_generate_mcqs_resolves_max_tokens_from_config(
+        self, tmp_path, monkeypatch
+    ):
+        from types import SimpleNamespace
+
+        from study_utils.quizzer.manager import quiz
+
+        toml_content = (
+            '[ai]\nmodel = "gpt-4o-mini"\ntemperature = 0.2\nmax_tokens = 600\n'
+        )
+        config_file = tmp_path / "quizzer.toml"
+        config_file.write_text(toml_content)
+
+        monkeypatch.setenv("STUDY_QUIZZER_CONFIG", str(config_file))
+
+        captured_max_tokens = {}
+
+        def fake_chat_completion(**kwargs):
+            captured_max_tokens["value"] = kwargs.get("max_tokens")
+            return SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        message=SimpleNamespace(content=json.dumps([]))
+                    )
+                ]
+            )
+
+        mock_client = SimpleNamespace(
+            chat=SimpleNamespace(
+                completions=SimpleNamespace(create=fake_chat_completion)
+            )
+        )
+
+        quiz.ai_generate_mcqs_for_topic(
+            {"id": "test", "name": "Test"}, n=3, client=mock_client
+        )
+
+        assert captured_max_tokens["value"] == 600
+
+    def test_ai_generate_mcqs_hardcoded_max_tokens_bypasses_config(
+        self, tmp_path, monkeypatch
+    ):
+        from types import SimpleNamespace
+
+        from study_utils.quizzer.manager import quiz
+        from study_utils.quizzer.config import QuizzerConfigError
+
+        captured_max_tokens = {}
+
+        def fake_chat_completion(**kwargs):
+            captured_max_tokens["value"] = kwargs.get("max_tokens")
+            return SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        message=SimpleNamespace(content=json.dumps([]))
+                    )
+                ]
+            )
+
+        mock_client = SimpleNamespace(
+            chat=SimpleNamespace(
+                completions=SimpleNamespace(create=fake_chat_completion)
+            )
+        )
+
+        original_load_config = quiz.load_config
+
+        def fake_load_config():
+            raise QuizzerConfigError("Simulate missing config")
+
+        quiz.load_config = fake_load_config
+
+        try:
+            model, temperature = "gpt-4o-mini", 0.2
+            quiz.ai_generate_mcqs_for_topic(
+                {"id": "test2", "name": "Test2"},
+                n=2,
+                client=mock_client,
+                model=model,
+                temperature=temperature,
+            )
+
+            assert captured_max_tokens["value"] == 800
+        finally:
+            quiz.load_config = original_load_config

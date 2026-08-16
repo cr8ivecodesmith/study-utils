@@ -123,34 +123,34 @@ The spec defines a `config init` / `config validate` CLI command group for quizz
 
 ### Stepwise implementation checklist
 
-- [ ] **Create `src/study_utils/quizzer/config.py`** — dataclass `QuizzerAIConfig`, `_DEFAULTS` dict tree with `[ai]` and `[storage]`, validation helpers, `_build_ai()`, `load_config()`, `validate_config()`.
-  - [ ] Define `CONFIG_FILENAME = "quizzer.toml"` and `CONFIG_ENV = "STUDY_QUIZZER_CONFIG"`.
-  - [ ] Implement `_resolve_config_path()` — CLI > env > workspace config.
-  - [ ] Implement `load_config(config_path, overrides, env, workspace_path)`.
-  - [ ] Implement `validate_config(path)` — returns resolved path on success, raises `QuizzerConfigError` on failure.
-  - [ ] Export types: `__all__ = ["QuizzerAIConfig", "load_config", "validate_config", ...]`
+- [x] **Create `src/study_utils/quizzer/config.py`** — dataclass `QuizzerAIConfig`, `_DEFAULTS` dict tree with `[ai]` and `[storage]`, validation helpers, `_build_ai()`, `load_config()`, `validate_config()`.
+  - [x] Define `CONFIG_FILENAME = "quizzer.toml"` and `CONFIG_ENV = "STUDY_QUIZZER_CONFIG"`.
+  - [x] Implement `_resolve_config_path()` — CLI > env > workspace config.
+  - [x] Implement `load_config(config_path, overrides, env, workspace_path)`.
+  - [x] Implement `validate_config(path)` — returns resolved path on success, raises `QuizzerConfigError` on failure.
+  - [x] Export types: `__all__ = ["QuizzerAIConfig", "load_config", "validate_config", ...]`
 
-- [ ] **Create `src/study_utils/quizzer/template.toml`** — packaged template resource with `[ai]`, `[storage]`, and sample `[quiz.<name>]` sections.
+- [x] **Create `src/study_utils/quizzer/template.toml`** — packaged template resource with `[ai]`, `[storage]`, and sample `[quiz.<name>]` sections.
 
-- [ ] **Register template in `core/config_templates.py`** — add `"quizzer": ConfigTemplate(...)` to `_TEMPLATES`.
+- [x] **Register template in `core/config_templates.py`** — add `"quizzer": ConfigTemplate(...)` to `_TEMPLATES`.
 
-- [ ] **Update `quizzer/utils.py` `_find_config()`** — delegate to workspace-aware resolution (CLI > env > workspace). Keep CWD fallback for existing behavior when no workspace override.
+- [x] **Update `quizzer/utils.py` `_find_config()`** — delegate to workspace-aware resolution (CLI > env > workspace). Keep CWD fallback for existing behavior when no workspace override.
 
-- [ ] **Modify `quizzer/_main.py`** —
-  - [ ] Import `load_config`, `validate_config`, `QuizzerConfigError` from config module.
-  - [ ] Replace `_QUIZZER_LLM["USE_LOCAL"]` and `["API_BASE"]` usage in `_cmd_questions_generate()` with config-derived values via lazy load.
-  - [ ] Add `config_cmd_init`, `config_cmd_validate`, `config_cmd_path` handlers.
-  - [ ] Extend `build_arg_parser()` with `config init [--path] [--force]`, `config validate`, `config path` subcommands using a new `config_parser` subparser.
-  - [ ] Update `main()` dispatch to route `command == "config"` to the correct handler based on `args.action`.
+- [x] **Modify `quizzer/_main.py`** —
+  - [x] Import `load_config`, `validate_config`, `QuizzerConfigError` from config module.
+  - [x] Replace `_QUIZZER_LLM["USE_LOCAL"]` and `["API_BASE"]` usage in `_cmd_questions_generate()` with config-derived values via lazy load.
+  - [x] Add `config_cmd_init`, `config_cmd_validate`, `config_cmd_path` handlers.
+  - [x] Extend `build_arg_parser()` with `config init [--path] [--force]`, `config validate`, `config path` subcommands using a new `config_parser` subparser.
+  - [x] Update `main()` dispatch to route `command == "config"` to the correct handler based on `args.action`.
 
-- [ ] **Modify `quizzer/manager/quiz.py`** —
-  - [ ] Update `_ensure_ai_client(client)` to accept optional `model`, `api_base`, `use_local`, `temperature`, `max_tokens` kwargs; if not provided, resolve from config.
-  - [ ] Update `ai_generate_mcqs_for_topic()` defaults: keep method-level defaults but wire them to config values for CLI-path calls. The function signature stays the same — it's a kwarg resolution change.
-  - [ ] Update `ai_extract_topics()` same pattern as above.
+- [x] **Modify `quizzer/manager/quiz.py`** —
+  - [x] Update `_ensure_ai_client(client)` to accept optional `model`, `api_base`, `use_local`, `temperature`, `max_tokens` kwargs; if not provided, resolve from config.
+  - [x] Update `ai_generate_mcqs_for_topic()` defaults: keep method-level defaults but wire them to config values for CLI-path calls. The function signature stays the same — it's a kwarg resolution change.
+  - [x] Update `ai_extract_topics()` same pattern as above.
 
-- [ ] **Write tests** — See Test Plan section below.
+- [x] **Write tests** — See Test Plan section below. All 18 new config tests written in `tests/test_quizzer_config.py`.
 
-- [ ] **Verify** — run full test suite; check existing quizzer tests pass and new ones cover config loading, template writing, validation, and backward compat paths.
+- [x] **Verify** — run full test suite; check existing quizzer tests pass and new ones cover config loading, template writing, validation, and backward compat paths.
 
 ## Test Plan
 

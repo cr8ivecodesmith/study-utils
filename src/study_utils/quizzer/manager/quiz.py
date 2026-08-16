@@ -460,13 +460,16 @@ def ai_generate_mcqs_for_topic(
     if resolved_client is None:
         return []
 
-    # Use config defaults for model and temperature if at default values
-    use_config_defaults = model == "gpt-4o-mini" and temperature == 0.2
+    config_max_tokens: int = 800
+    use_config_defaults = model == "gpt-4o-mini" and (
+        temperature == 0.2 and config_max_tokens == 800
+    )
     if use_config_defaults:
         try:
             ai_conf = load_config().ai
             model = model or ai_conf.model
             temperature = temperature or ai_conf.temperature
+            config_max_tokens = ai_conf.max_tokens
         except QuizzerConfigError:
             pass
 
@@ -479,7 +482,7 @@ def ai_generate_mcqs_for_topic(
         system_prompt=sys_prompt,
         user_prompt=user_prompt,
         temperature=temperature,
-        max_tokens=800,
+        max_tokens=config_max_tokens,
     )
     content = content.replace("\n", "")
     if not content:
